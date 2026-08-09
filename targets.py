@@ -32,7 +32,7 @@ reported only if those weights are supplied with --endosteum-weights; it is not
 guessed, and the bone-column MST is not a substitute for it.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 import argparse
 import csv
 import os

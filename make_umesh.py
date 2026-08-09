@@ -30,7 +30,7 @@ gives that organ's density and volume. Every organ composition is checked back
 against the 52 media in media.dat before anything is written.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 import csv
 import os
 import re
@@ -422,6 +422,10 @@ def build(sex):
         w(card('START', (100000,)))
         w(card('STOP'))
 
+    # Volumes and masses are written at full precision. A fixed number of
+    # decimals costs significant figures on the smallest organs -- at six
+    # decimals a 0.025 g organ keeps only five -- and those are exactly the
+    # organs whose dose is divided by the volume written here.
     tbl = os.path.join(out_dir(sex), f'{sex}_regions.csv')
     with open(tbl, 'w', newline='') as f:
         c = csv.writer(f)
@@ -436,10 +440,10 @@ def build(sex):
             bf = blood.get(medium_of[i], 0.0)
             r, y, tb, cb, mst = bone.get(i, (0.0,) * 5)
             c.writerow([f'{sex}{i}', i, name, mat_of[key_of[i]], medium_of[i],
-                        rho, f'{vol:.6f}', f'{m:.6f}', bf, f'{m*bf:.6f}',
-                        f'{d:.6f}',
-                        r, f'{d*r:.6f}', y, f'{d*y:.6f}', tb, f'{d*tb:.6f}',
-                        cb, f'{d*cb:.6f}', mst, f'{d*mst:.6f}'])
+                        rho, repr(vol), repr(m), bf, repr(m * bf),
+                        repr(d),
+                        r, repr(d * r), y, repr(d * y), tb, repr(d * tb),
+                        cb, repr(d * cb), mst, repr(d * mst)])
 
     print(f'{sex}: {out}')
     print(f'   {len(ids)} organs -> {len(ids)} regions, {len(mat_of)} materials,'

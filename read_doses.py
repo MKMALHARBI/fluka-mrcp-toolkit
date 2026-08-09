@@ -33,7 +33,7 @@ For an internal source the specific absorbed fraction follows as
     SAF(target <- source) = dose per decay / energy emitted     in kg-1
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 import argparse
 import csv
 import os
