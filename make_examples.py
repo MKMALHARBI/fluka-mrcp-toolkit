@@ -30,7 +30,7 @@ returning anything, so this script cannot emit an input built on tables that
 failed their checks.
 """
 
-__version__ = '1.2.0'
+__version__ = '1.2.1'
 import argparse
 import os
 import sys
