@@ -464,6 +464,13 @@ def assemble(sex):
         if hit is None:
             problems.append(f'organ {i} ({name}) matches no medium in media.dat')
         medium_of[i] = hit
+        # the density carried is the media (Annex B) value; the per-organ
+        # table prints the 15M tongue to one digit less (1.05 vs 1.051)
+        if hit is not None and rho != media[hit][1]:
+            warnings.append(f'organ {i} ({name}): density {rho} in .material,'
+                            f' {media[hit][1]} in media.dat; media carried')
+            rho = media[hit][1]
+            mats[i] = (name, rho, comp)
         # ICRP's own two tables disagree slightly for a few organs -- the
         # spinal cord of three paediatric phantoms, by 0.1 to 0.2 %. The mass
         # is built from the .material density, because that is the density the

@@ -1,12 +1,13 @@
-# A FLUKA toolkit for the ICRP-145 adult mesh phantoms
+# A FLUKA toolkit for the ICRP mesh-type reference phantoms
 
-Build the ICRP Publication 145 adult mesh-type reference computational phantoms
-in FLUKA, run them, and reduce the results to organ and target-region doses.
+Build the ICRP mesh-type reference computational phantoms — the two adults of
+Publication 145 and the ten children of Publication 156 — in FLUKA, run them,
+and reduce the results to organ and target-region doses.
 
-ICRP-145 distributes two exposure examples implemented for **Geant4, MCNP6 and
-PHITS**. It distributes none for FLUKA. This toolkit builds the phantoms in
-FLUKA, generates those two examples or any case of your own, and reduces the
-output to organ and target-region doses.
+ICRP distributes two exposure examples implemented for **Geant4, MCNP6 and
+PHITS**. It distributes none for FLUKA. This toolkit builds all twelve
+phantoms in FLUKA, generates those two examples or any case of your own, and
+reduces the output to organ and target-region doses.
 
 Bozzato *et al* 2026 (*J. Radiol. Prot.* **46** 011510) implemented these
 phantoms in FLUKA first and published fluence-to-effective-dose conversion
@@ -22,17 +23,19 @@ Built and tested on FLUKA 4-5.2, gfortran, Linux.
 python3 RUNME.py
 ```
 
-Five tabs, in the order they have to happen. Point tab 1 at the ICRP download,
-then work left to right. No environment variable, no terminal commands, and the
-data location is remembered so tab 1 is done once.
+Six tabs, in the order they have to happen. Point tab 1 at the ICRP download
+— the P145 zip, the P156 zip, or both — then work left to right. No
+environment variable, no terminal commands, and the data location is
+remembered so tab 1 is done once per archive.
 
 | tab | what it does |
 |---|---|
-| 1 Data | choose the ICRP zip as downloaded, or a folder; it unpacks the 14 files needed |
+| 1 Data | choose an ICRP zip as downloaded, or a folder; it unpacks the files needed |
 | 2 Phantom | builds the FLUKA cards, refusing to write unless the masses match ICRP |
-| 3 Case | organ, particle, energy, phantom, exposure, physics; writes the input |
+| 3 Case | organ, particle, energy, phantom, exposure, physics; writes the input. Offers the phantoms built on tab 2 |
 | 4 Run | cycles and cores; runs FLUKA, merges with `usbsuw`, converts |
-| 5 Results | dose per organ, or per ICRP-145 target region |
+| 5 Results | dose per organ or per ICRP target region; CSV export at 1, 2 or 3 sigma |
+| 6 View | slices through anatomy, airways and dose; merges raw cycles when needed |
 
 The log pane echoes the equivalent command for everything it does, so a session
 in the window can be repeated on the command line.
@@ -41,10 +44,10 @@ in the window can be repeated on the command line.
 
 | # | run | what it does | produces |
 |---|---|---|---|
-| 0 | `setup_data.py <zip or folder>` | unpacks the ICRP data and remembers where it is | `phantom/`, `.datapath` |
-| 1 | `selftest.py` | checks Python, FLUKA, the data, and that the phantom matches ICRP's reference masses | pass / fail |
-| 2 | `make_umesh.py` | builds the phantom: one `MATERIAL` + `COMPOUND` per tissue, one `ASSIGNMA` per organ | the cards, and `AM_regions.csv` / `AF_regions.csv` |
-| 3 | `make_examples.py` | writes the FLUKA input for your case | `AM/Internal/MRCP-AM_internal.inp` etc. |
+| 0 | `setup_data.py <zip or folder>` | unpacks the ICRP data (P145, P156 or both) and remembers where it is | `phantom/`, `.datapath` |
+| 1 | `selftest.py` | checks Python, FLUKA, the data, every phantom's masses and decks; `--fluka` adds short transport runs and staged failures, `--transport` runs every phantom through FLUKA | pass / fail |
+| 2 | `make_umesh.py` | builds the phantom: one `MATERIAL` + `COMPOUND` per tissue, one `ASSIGNMA` per organ | the cards, and `<phantom>_regions.csv` |
+| 3 | `make_examples.py` | writes the FLUKA input for your case | `runs/AM_internal_9500_photon1MeV/…inp` etc. |
 | 4 | `rfluka`, `usbsuw`, `usbrea` | FLUKA's own commands: transport, merge, convert | `*_sum.lis` |
 | 5 | `read_doses.py` or `targets.py` | dose per organ, or per ICRP-145 target region | a table, printed or CSV |
 
@@ -57,18 +60,19 @@ message saying so. And **`usbsuw` is not optional**: the file FLUKA writes
 directly holds the scores but no uncertainties.
 
 ```sh
-python3 setup_data.py ~/Downloads/P145*.zip   # 0  once
+python3 setup_data.py ~/Downloads/P145*.zip   # 0  once per archive
+python3 setup_data.py ~/Downloads/P156*.zip
 python3 selftest.py                           # 1
 python3 make_umesh.py                         # 2
 python3 make_examples.py                      # 3
 
-cd AM/External                                # 4  FLUKA's own commands
-rfluka -N0 -M10 MRCP-AM_external
-{ ls *_fort.21; echo; echo MRCP-AM_external_sum; } | usbsuw
-printf 'MRCP-AM_external_sum.bnn\nMRCP-AM_external_sum.lis\n\n' | usbrea
+cd runs/AM_external_photon1MeV                # 4  FLUKA's own commands
+rfluka -N0 -M10 AM_external_photon1MeV
+{ ls *_fort.21; echo; echo AM_external_photon1MeV_sum; } | usbsuw
+printf 'AM_external_photon1MeV_sum.bnn\nAM_external_photon1MeV_sum.lis\n\n' | usbrea
 cd ../..
 
-python3 targets.py AM AM/External/*_sum.lis   # 5
+python3 targets.py AM runs/AM_external_photon1MeV/*_sum.lis   # 5
 ```
 
 FLUKA is single-threaded; to use more cores, run several `rfluka` processes with
@@ -84,10 +88,10 @@ The phantom data is not included — see `REQUIREMENTS.md`.
 Only step 3 changes.
 
 ```sh
-python3 make_examples.py --list-organs                   # the 187 organ IDs
+python3 make_examples.py --list-organs                   # organ IDs (187 adult, up to 241 child)
 python3 make_examples.py --organ 8700                    # heart-wall source
 python3 make_examples.py --particle ELECTRON --energy 0.5
-python3 make_examples.py --sex AM --case internal
+python3 make_examples.py --sex 00M --case internal       # any of the 12 phantoms
 ```
 
 The ICRP benchmark inputs are never overwritten: anything non-default is written
@@ -100,7 +104,7 @@ python3 read_doses.py AM AM/Internal/*_sum.lis     # per organ
 python3 targets.py   AM AM/Internal/*_sum.lis      # per ICRP target region
 ```
 
-`read_doses.py` gives all 187 organs. `targets.py` gives the 73 ICRP-145 target
+`read_doses.py` gives every organ of the phantom. `targets.py` gives the 73 ICRP-145 target
 regions — picking the radiosensitive sub-layer where ICRP specifies one, and
 computing red bone marrow, which no per-organ result contains.
 
@@ -172,7 +176,9 @@ inputs are never overwritten.
 ## Validation
 
 `make_umesh.py` refuses to write anything unless the phantom it has built matches
-ICRP's published reference values, and `selftest.py` checks the same:
+ICRP's published reference values — the same gates run for all twelve phantoms
+against each one's own Publication 145 or 156 reference masses — and
+`selftest.py` checks the same:
 
 | | male | ICRP | female | ICRP |
 |---|---|---|---|---|
@@ -218,7 +224,10 @@ Points that are not in the FLUKA manual and cost time to find.
 **Region names.** For a TetGen mesh FLUKA concatenates the `UMESH` SDUM with the
 integer organ-ID attribute, no separator: SDUM `AM` and organ 9500 give region
 `AM9500`. Names cap at 8 characters and ICRP organ IDs reach 14000, so the SDUM
-cannot exceed three characters.
+cannot exceed three characters. Names must also begin with a letter — Flair
+refuses digit-first names even though the FLUKA executable accepts them — so
+the paediatric tags are aliased with the sex letter rotated to the front:
+`00M` becomes `M00`, region `M009500`.
 
 **The internal source.** Sampling a point inside a tetrahedral organ needs
 `tetrarndpt`, reachable only from a source routine. Its `SOURCE` SDUM must be the
@@ -238,7 +247,10 @@ the data can sit anywhere without an absolute path ever appearing.
 predefines 8 of the 13 elements ICRP uses; P, S, Cl, K and I need their own
 cards. `MRCP_*_media.dat` cannot give the organ→medium map — its organ-name
 column is truncated with `...` — so the map comes from ICRP's MCNP6 tables and
-is cross-checked against the 52 media.
+is cross-checked against the 52 media. The density carried is the media
+(Annex B) value; where the per-organ table prints it to fewer digits (the 15M
+tongue, 1.05 vs 1.051), the build notes the difference and carries the media
+figure.
 
 **Bone ratios.** `MRCP_*_bone.dat` lists each ratio twice, exclusive and
 inclusive of blood. Only the exclusive ratios against the blood-free mass
@@ -258,12 +270,16 @@ array, so it is not optional.
 
 - **Endosteum is not computed.** ICRP does not distribute endosteum mass
   fractions; supply them with `targets.py --endosteum-weights` if you have them.
-- **Organ 813** (`Brchiol-sec`) is listed in ICRP-145 Annex D but exists in
-  neither distributed phantom, and none of the three reference implementations
-  reports it. `targets.py --check` says so rather than reporting zero.
-- Bladder-wall organs 13700 and 13701 were re-divided by ICRP between the 2018
-  reference runs and the 2020 one; they are not comparable against MCNP6 and
-  PHITS and are marked `geom`.
+- **Target 813** (`Brchiol-sec`) in ICRP-145 Annex D belongs to the auxiliary
+  lung-airway model (Table C.1, IDs 810-815), not to the tetrahedral mesh: no
+  tetrahedron carries that attribute and none of the three reference
+  implementations, which transport the mesh alone, reports it. The airway
+  scoring option computes the bronchiolar layers; `targets.py --check` reports
+  813 as absent from the mesh rather than reporting zero.
+- Bladder-wall organs 13700 and 13701 were re-divided between the 2018
+  reference runs and the 2020 one; they are comparable only against Geant4,
+  which derives from the same division as the distributed data, and are
+  marked `geom` for the other two.
 
 ## Licence
 
