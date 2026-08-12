@@ -41,6 +41,9 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import make_umesh as M                                            # noqa: E402
+
 GEV_J = 1.602176634e-10          # 1 GeV in joules
 
 
@@ -69,19 +72,26 @@ def read_usrbin_ascii(path):
     return blocks[0], blocks[1]
 
 
-def load_regions(sex):
-    """The region table make_umesh.py writes: organ ID, volume, mass, ratios."""
-    fn = os.path.join(HERE, sex, f'{sex}_regions.csv')
+def load_regions(sex, where=None):
+    """The region table: organ ID, volume, mass, ratios.
+
+    It lives in the case directory, written beside the input it belongs to, so
+    a case carries the volumes its own doses were divided by. Pass the case
+    directory, or a file inside it.
+    """
+    if where and os.path.isfile(where):
+        where = os.path.dirname(where)
+    fn = os.path.join(where or M.out_dir(sex), f'{sex}_regions.csv')
     if not os.path.exists(fn):
         sys.exit(f'{fn} not found.\n'
-                 f'Build the phantom first:  python3 make_umesh.py\n'
-                 f'(it writes the region tables every later step reads).')
+                 f'Generate the case first:  python3 make_examples.py\n'
+                 f'(it writes the region table into the case directory).')
     return list(csv.DictReader(open(fn)))
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('sex', choices=('AM', 'AF'))
+    ap.add_argument('sex', choices=list(M.REFERENCE))
     ap.add_argument('usrbin', help='ASCII from usbrea, run on a usbsuw output')
     ap.add_argument('-o', '--out', help='write the full table here as CSV')
     ap.add_argument('-e', '--energy', type=float, default=1.0e-3,
@@ -89,7 +99,7 @@ def main():
     ap.add_argument('-n', '--top', type=int, default=15)
     a = ap.parse_args()
 
-    rows = load_regions(a.sex)
+    rows = load_regions(a.sex, a.usrbin)
     vals, errs = read_usrbin_ascii(a.usrbin)
     for name, arr in (('values', vals), ('errors', errs)):
         if len(arr) != len(rows):

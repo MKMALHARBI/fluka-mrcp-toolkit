@@ -1,29 +1,16 @@
-# ICRP data -- copyright ICRP, obtain it yourself (REQUIREMENTS.md)
-phantom/MRCP_A*/
-phantom/mcnp_tables/
+# Everything the toolkit generates: the ICRP data it unpacks, the phantom
+# cards, the cases and their results, and the FLUKA executable. None of it is
+# ours to redistribute and all of it is rebuilt from the zips plus the code.
+runs/
 
-# FLUKA and anything built from it -- CERN licence, not redistributable
+# anything built against FLUKA -- CERN licence, not redistributable
 mrcp_source.f
 flukamrcp
 *.o
 *.mod
 
-# generated from the ICRP data
-A[MF]/
-*_regions.csv
-*.inp
-
-# run artefacts
-fluka_*/
-ran*
-*_fort.2*
-*_sum.*
-*.log
-.status
-.done
 __pycache__/
-supplement.aux
-supplement.out
 
-# machine-specific: where this install keeps the ICRP data
+# machine-specific: where this install keeps the ICRP data and its output
 .datapath
+.outpath

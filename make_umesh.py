@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Build the FLUKA inputs for the ICRP-145 adult mesh-type reference phantoms.
 
-    python3 make_umesh.py            writes AM/AM.inp and AF/AF.inp plus their
-                                     region tables
+    python3 make_umesh.py            writes the region table for each phantom
 
-DATA LOCATION. ICRP data is expected under ./phantom :
+DATA LOCATION. The ICRP data sits under the work root, where setup_data.py
+unpacks it:
 
-    phantom/MRCP_AM/MRCP_AM.ele  .node  _media.dat  _bone.dat  _blood.dat
-    phantom/MRCP_AF/MRCP_AF.ele  ...
-    phantom/mcnp_tables/mrcp-am.cell  mrcp-am.material  mrcp-af.*
+    runs/phantom/MRCP_AM/MRCP_AM.ele  .node  _media.dat  _bone.dat  _blood.dat
+    runs/phantom/MRCP_AF/MRCP_AF.ele  ...
+    runs/phantom/mcnp_tables/mrcp-am.cell  mrcp-am.material  mrcp-af.*
 
 Set MRCP_DATA to override.
 
@@ -25,9 +25,16 @@ WHERE THE ORGAN DATA COMES FROM. MRCP_*_media.dat lists the 52 media with their
 compositions and densities, but its organ-name column is truncated with '...'
 for every medium shared by several organs, so it cannot be inverted to an
 organ-ID -> medium map. ICRP ships that map explicitly in the MCNP6 example
-files: mrcp-am.material gives one composition per organ ID and mrcp-am.cell
-gives that organ's density and volume. Every organ composition is checked back
-against the 52 media in media.dat before anything is written.
+files: mrcp-am.material gives one composition and one density per organ ID.
+Every organ composition is checked back against the 52 media in media.dat
+before anything is written.
+
+ORGAN VOLUME is not read from a table. It is summed over the tetrahedra of the
+.ele file, so the mass of a region is the mass of the geometry FLUKA is handed
+and a dose is a deposit divided by what actually stopped it. mrcp-am.cell also
+tabulates a volume, and for the adults it is the same number; for the ten
+paediatric phantoms it is not, for the tissues ICRP cuts into head, trunk, arms
+and legs. mesh_volumes() has the measurements.
 """
 
 __version__ = '1.1.0'
@@ -38,6 +45,29 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(HERE, '.datapath')
+
+
+OUTCFG = os.path.join(HERE, '.outpath')
+
+
+def work_root():
+    """Where everything generated goes.
+
+    Nothing is written beside the code. The phantom cards, the region tables
+    and every case live under one directory, so the toolkit stays exactly as
+    it was installed and a whole study can be moved or deleted in one piece.
+    Default runs/ next to the toolkit; set_work_root moves it.
+    """
+    if os.path.exists(OUTCFG):
+        p = open(OUTCFG).read().strip()
+        if p:
+            return p
+    return os.path.join(HERE, 'runs')
+
+
+def set_work_root(path):
+    with open(OUTCFG, 'w') as f:
+        f.write(os.path.abspath(path))
 
 
 def data_dir():
@@ -57,7 +87,7 @@ def data_dir():
         p = open(CONFIG).read().strip()
         if p and os.path.isdir(p):
             return p
-    return os.path.join(HERE, 'phantom')
+    return os.path.join(work_root(), 'phantom')
 
 
 def set_data_dir(path):
@@ -77,22 +107,68 @@ def _refresh():
     return DATA
 
 
+def alias(sex):
+    """The phantom tag as a FLUKA name.
+
+    FLUKA names must begin with a letter, so the paediatric tags rotate the
+    sex letter to the front: 00M -> M00. Three characters, since the region
+    names append an organ ID of up to five digits to an 8-character limit.
+    """
+    return sex if sex[0].isalpha() else sex[-1] + sex[:-1]
+
+
+def phantoms(data=None):
+    """Every phantom whose mesh is present, in the order REFERENCE lists them.
+
+    Discovered rather than hardcoded: the adults are Publication 145 and the
+    ten children are Publication 156, and more may follow. A phantom counts as
+    present when its .ele file is there and its reference masses are known,
+    because without those the build cannot be checked.
+    """
+    root = data or data_dir()
+    out = []
+    for name in REFERENCE:
+        f = os.path.join(root, f'MRCP_{name}', f'MRCP_{name}.ele')
+        if os.path.exists(f):
+            out.append(name)
+    return out
+
+
 def mesh_dir(sex):
     """Directory holding MRCP_<sex>.ele/.node and the three .dat tables."""
     return os.path.join(data_dir(), f'MRCP_{sex}')
 
 
 def out_dir(sex):
-    """Output directory for this phantom."""
-    d = os.path.join(HERE, sex)
+    """Kept for callers that want a per-phantom scratch area.
+
+    Cases do not use this. Every case is self-contained: make_examples.py
+    gives build() its own directory and the region table is written there,
+    beside the input it belongs to.
+    """
+    d = os.path.join(work_root(), sex)
     os.makedirs(d, exist_ok=True)
     return d
 
 
-# Table 2.1 / 2.2, ICRP Publication 145
+# The adults are Publication 145, tables 2.1 and 2.2. The children are
+# Publication 156: total body mass and standing height from table 6.1, and
+# the marrow masses from table 4.2, organ-only column, which is the blood-free
+# mass the ratios in MRCP_*_bone.dat apply to. Newborn standing height is the
+# recumbent reference length; the newborn has no inactive marrow at all.
 REFERENCE = {
-    'AM': dict(height=176.0, mass=73000.0, rbm=1170.0, ybm=2480.0),
-    'AF': dict(height=163.0, mass=60000.0, rbm=900.0, ybm=1800.0),
+    'AM':  dict(height=176.0, mass=73000.0, rbm=1170.000, ybm=2480.000),
+    'AF':  dict(height=163.0, mass=60000.0, rbm= 900.000, ybm=1800.000),
+    '00M': dict(height= 51.0, mass= 3500.0, rbm=  50.000, ybm=   0.000),
+    '00F': dict(height= 51.0, mass= 3500.0, rbm=  50.000, ybm=   0.000),
+    '01M': dict(height= 76.0, mass=10000.0, rbm= 155.548, ybm=  14.452),
+    '01F': dict(height= 76.0, mass=10000.0, rbm= 155.548, ybm=  14.452),
+    '05M': dict(height=109.0, mass=19000.0, rbm= 374.931, ybm= 125.069),
+    '05F': dict(height=109.0, mass=19000.0, rbm= 374.931, ybm= 125.069),
+    '10M': dict(height=138.0, mass=32000.0, rbm= 754.144, ybm= 505.856),
+    '10F': dict(height=138.0, mass=32000.0, rbm= 754.144, ybm= 505.856),
+    '15M': dict(height=167.0, mass=56000.0, rbm=1053.496, ybm=1506.504),
+    '15F': dict(height=161.0, mass=53000.0, rbm=1049.098, ybm=1330.902),
 }
 
 # MCNP ZAID -> (symbol, Z, FLUKA material name)
@@ -141,7 +217,12 @@ def load_materials(sex):
 
 
 def load_cells(sex):
-    """organ ID -> (density g/cm3, volume cm3)."""
+    """organ ID -> (density g/cm3, volume cm3) as MCNP tabulates them.
+
+    The volume here is the one MCNP normalises its tallies by. It is NOT
+    always the volume of the tetrahedra FLUKA transports; see mesh_volumes.
+    Only the density is taken from this table for the build.
+    """
     fn = os.path.join(data_dir(), 'mcnp_tables', f'mrcp-{sex.lower()}.cell')
     out = {}
     for line in open(fn, encoding='latin-1'):
@@ -226,6 +307,63 @@ def organ_ids(sex):
     return sorted(seen)
 
 
+_VOLUMES = {}
+
+
+def mesh_volumes(sex):
+    """organ ID -> volume cm3, summed over the tetrahedra of the .ele file.
+
+    This is the volume of the geometry FLUKA is given, so it is the volume a
+    scored energy deposit has to be divided by. It is not read from a table;
+    it is the mesh itself, one sixth of the scalar triple product over every
+    tetrahedron carrying that organ ID, in the file's own centimetres.
+
+    It is not always what mrcp-*.cell tabulates. Whole-body volume and mass
+    agree exactly, and so does every organ that occupies one place in the
+    body, but the tissues ICRP subdivides by body region -- muscle, residual
+    tissue, skin and the large blood vessels, each cut into head, trunk, arms
+    and legs -- are split differently in the two. In the newborn male the arm
+    muscle is 69.407 cm3 of tetrahedra against 76.381 cm3 in the table, 9.1 %,
+    and the trunk muscle is larger by the same amount of tissue; the ten
+    paediatric phantoms all show it, the two adults do not. The published
+    Geant4 example output follows the table rather than the mesh it reads,
+    so the region boundary moved between the mesh ICRP tabulated and the mesh
+    ICRP distributes. Since FLUKA transports the distributed mesh, the mesh
+    is what its regions are normalised by. build() prints the disagreement.
+
+    Reading the mesh costs about twenty seconds a phantom, so the answer is
+    kept -- selftest.py and the GUI both ask for the same phantom repeatedly.
+    """
+    if sex in _VOLUMES:
+        return _VOLUMES[sex]
+    from array import array
+    x, y, z = array('d'), array('d'), array('d')
+    d = mesh_dir(sex)
+    with open(os.path.join(d, f'MRCP_{sex}.node'), encoding='latin-1') as f:
+        n = int(f.readline().split()[0])
+        for _ in range(n):
+            t = f.readline().split()
+            x.append(float(t[1]))
+            y.append(float(t[2]))
+            z.append(float(t[3]))
+    vol = {}
+    with open(os.path.join(d, f'MRCP_{sex}.ele'), encoding='latin-1') as f:
+        m = int(f.readline().split()[0])
+        for _ in range(m):
+            t = f.readline().split()
+            a, b, c, e = int(t[1]), int(t[2]), int(t[3]), int(t[4])
+            ax, ay, az = x[a], y[a], z[a]
+            bx, by, bz = x[b] - ax, y[b] - ay, z[b] - az
+            cx, cy, cz = x[c] - ax, y[c] - ay, z[c] - az
+            ex, ey, ez = x[e] - ax, y[e] - ay, z[e] - az
+            v = (bx * (cy * ez - cz * ey) + by * (cz * ex - cx * ez)
+                 + bz * (cx * ey - cy * ex))
+            o = int(t[5])
+            vol[o] = vol.get(o, 0.0) + (v if v >= 0.0 else -v)
+    _VOLUMES[sex] = {o: v / 6.0 for o, v in vol.items()}
+    return _VOLUMES[sex]
+
+
 # ---------------------------------------------------------------- cards
 
 def card(tag, w=(), sdum=''):
@@ -286,7 +424,8 @@ def assemble(sex):
     Returns None, having printed why, if any consistency or reference-mass
     check fails -- nothing downstream should write an input from bad data.
     """
-    ids = organ_ids(sex)
+    vols = mesh_volumes(sex)
+    ids = sorted(vols)
     mats = load_materials(sex)
     cells = load_cells(sex)
     media = load_media(sex)
@@ -294,7 +433,7 @@ def assemble(sex):
     blood = load_blood(sex)
     ref = REFERENCE[sex]
 
-    problems = []
+    problems, warnings = [], []
 
     missing = [i for i in ids if i not in mats or i not in cells]
     if missing:
@@ -303,41 +442,98 @@ def assemble(sex):
     # every organ must match one of the 52 media in media.dat -- this is what
     # ties the MCNP-side organ table back to ICRP's own published media list,
     # and it is also how each organ gets its medium number for the blood ratios
+    # Composition decides, density only breaks ties. The two tables round
+    # differently: the tongue of the 15-year-old male is 1.05 g/cm3 in
+    # .material and 1.051 in media.dat, the same medium printed to different
+    # precision, and requiring the densities to agree to 0.0005 rejected it
+    # even though every element fraction agreed exactly. The best match is
+    # taken rather than the first, so a near-miss cannot win over an exact one.
     medium_of = {}
     for i in ids:
         name, rho, comp = mats[i]
-        hit = None
+        best, hit = None, None
         for mid, (_, mrho, mcomp) in media.items():
-            if abs(mrho - rho) > 5e-4:
-                continue
             if set(mcomp) != set(comp):
                 continue
-            if all(abs(mcomp[e] - comp[e]) <= 1e-3 for e in comp):
-                hit = mid
-                break
+            worst = max(abs(mcomp[e] - comp[e]) for e in comp)
+            if worst > 1e-3 or abs(mrho - rho) > 2e-3:
+                continue
+            score = (worst, abs(mrho - rho))
+            if best is None or score < best:
+                best, hit = score, mid
         if hit is None:
             problems.append(f'organ {i} ({name}) matches no medium in media.dat')
         medium_of[i] = hit
-        if abs(cells[i][0] - rho) > 5e-4:
-            problems.append(f'organ {i} ({name}) density {rho} in .material '
-                            f'but {cells[i][0]} in .cell')
+        # ICRP's own two tables disagree slightly for a few organs -- the
+        # spinal cord of three paediatric phantoms, by 0.1 to 0.2 %. The mass
+        # is built from the .material density, because that is the density the
+        # MATERIAL card carries and therefore the one FLUKA transports with,
+        # so a small disagreement is noted and not fatal.
+        drho = abs(cells[i][0] - rho)
+        if drho > 5e-4:
+            where = (f'organ {i} ({name}): density {rho} g/cm3 in .material, '
+                     f'{cells[i][0]} in .cell ({100 * drho / rho:+.2f} %); '
+                     f'the MATERIAL card carries the .material value')
+            (warnings if drho <= 0.01 * rho else problems).append(where)
+
+    # Volume is the mesh's own, density the .cell one, which mesh_volumes and
+    # the density check above explain. Where the two tables disagree on volume
+    # the organ is named, because the disagreement carries straight into dose.
+    apart = sorted(((100.0 * (vols[i] - cells[i][1]) / cells[i][1], i)
+                    for i in ids if i in cells and cells[i][1] > 0),
+                   key=lambda p: -abs(p[0]))
+    off = [p for p in apart if abs(p[0]) > 0.5]
+    if off:
+        both = [i for i in ids if i in cells and cells[i][1] > 0]
+        tot = 100.0 * (sum(vols[i] for i in both)
+                       - sum(cells[i][1] for i in both)) \
+            / sum(cells[i][1] for i in both)
+        warnings.append(
+            f'{len(off)} pieces of distributed tissues where the mesh and '
+            f'mrcp-{sex.lower()}.cell partition the head/trunk/arms/legs '
+            f'boundaries differently, worst '
+            + ', '.join(f'{i} ({mats[i][0]}) {p:+.2f} %' for p, i in off[:3])
+            + f'; whole-body volume agrees to {tot:+.3f} % and masses follow '
+              'the mesh, so doses are consistent with the transported '
+              'geometry; only these pieces are not comparable against '
+              'table-normalised references')
 
     # masses, and the reference-mass checks that have to pass before writing.
     # the bone ratios are exclusive of blood, so they act on the blood-free mass
-    mass = {i: cells[i][1] * cells[i][0] for i in ids}
+    mass = {i: vols[i] * mats[i][1] for i in ids}
     dry = {i: mass[i] * (1.0 - blood.get(medium_of[i], 0.0)) for i in ids}
     total = sum(mass.values())
     rbm = sum(dry[i] * bone[i][0] for i in ids if i in bone)
     ybm = sum(dry[i] * bone[i][1] for i in ids if i in bone)
 
-    def check(label, got, want, tol):
+    def check(label, got, want, frac, floor=1.0):
+        tol = max(frac * want, floor)
         if abs(got - want) > tol:
-            problems.append(f'{label} {got:.1f} g, ICRP reference {want:.1f} g')
+            problems.append(f'{label} {got:.1f} g, ICRP reference {want:.1f} g '
+                            f'({100 * (got - want) / want:+.2f} %, limit '
+                            f'{100 * frac:.1f} %)')
 
-    check('total mass', total, ref['mass'], 0.005 * ref['mass'])
-    check('red bone marrow', rbm, ref['rbm'], 0.02 * ref['rbm'])
-    check('yellow bone marrow', ybm, ref['ybm'], 0.02 * ref['ybm'])
+    # Tolerances measured against all twelve phantoms, not guessed.
+    #
+    # Total mass is what ICRP guarantees: Publication 156 states the organ
+    # masses agree with the reference values within 0.1 %, and the worst seen
+    # here is 0.02 %.
+    #
+    # The marrows are different. They are not segmented organs -- Publication
+    # 156 says the microstructures of the skeletal targets "are not modelled
+    # explicitly" -- so their mass is derived from the spongiosa mass and the
+    # ratios in MRCP_*_bone.dat, and ICRP claims no accuracy for the result.
+    # Measured: red marrow agrees to 0.73 % or better everywhere. Inactive
+    # marrow agrees to 0.02 % in the adults but runs high in the children, by
+    # up to 2.4 % at 15 years. That follows from Publication 156 itself, which
+    # says the ACTIVE marrow masses were adjusted to match the reference and
+    # says nothing of the inactive, so only the active one was tuned.
+    check('total mass', total, ref['mass'], 0.005)
+    check('red bone marrow', rbm, ref['rbm'], 0.015)
+    check('yellow bone marrow', ybm, ref['ybm'], 0.030)
 
+    for w in warnings:
+        print(f'{sex} note: {w}')
     if problems:
         print(f'{sex}: NOT WRITTEN', file=sys.stderr)
         for p in problems:
@@ -368,65 +564,37 @@ def assemble(sex):
                 w += [num(-v / tot), en]
             cards.append(card('COMPOUND', w, nm))
     for i in ids:
-        cards.append(card('ASSIGNMA', (mat_of[key_of[i]], f'{sex}{i}')))
+        cards.append(card('ASSIGNMA', (mat_of[key_of[i]], f'{alias(sex)}{i}')))
 
     return dict(sex=sex, ids=ids, cards=cards, mats=mats, cells=cells,
+                vols=vols,
                 bone=bone, blood=blood, medium_of=medium_of, mat_of=mat_of,
                 key_of=key_of, mass=mass, dry=dry, total=total, rbm=rbm,
                 ybm=ybm, ref=ref)
 
-def build(sex):
+def build(sex, dest=None, write=True):
     d = assemble(sex)
     if d is None:
         return None
-    ids, cards, mats, cells = d['ids'], d['cards'], d['mats'], d['cells']
+    ids, cards, mats, vols = d['ids'], d['cards'], d['mats'], d['vols']
     bone, blood, medium_of = d['bone'], d['blood'], d['medium_of']
     mat_of, key_of = d['mat_of'], d['key_of']
     mass, dry, total, rbm, ybm, ref = (d['mass'], d['dry'], d['total'],
                                        d['rbm'], d['ybm'], d['ref'])
 
-    out = os.path.join(out_dir(sex), f'{sex}.inp')
-    with open(out, 'w') as f:
-        w = lambda s: f.write(s + '\n')
-        w('TITLE')
-        w(f'ICRP-145 {sex} adult mesh-type reference computational phantom')
-        w(comment('..+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8'))
-        w(comment(f'{len(ids)} organs, {ref["height"]:.0f} cm, {ref["mass"]/1000:.0f} kg'))
-        w(comment('A region name is the UMESH SDUM plus the organ ID, e.g. %s100.' % sex))
-        w(card('GLOBAL', (5000.0,)))
-        w(card('DEFAULTS', (), 'PRECISIO'))
-        w(card('BEAM', (-1.0e-4,), 'PHOTON'))
-        w(card('BEAMPOS', (0.0, -100.0, 0.0, 0.0, 1.0)))
-        w(card('GEOBEGIN', (), 'COMBNAME'))
-        w(card('UMESH', (), sex))
-        # relative to the output directory: FLUKA rejects an absolute path
-        # on the UMESH card, so this must stay relative wherever DATA is
-        w(os.path.relpath(os.path.join(mesh_dir(sex), f'MRCP_{sex}.ele'),
-                          out_dir(sex)))
-        w('    0    0')
-        w('SPH blkbody    0.0 0.0 0.0 100000.0')
-        w('SPH void       0.0 0.0 0.0 10000.0')
-        w('END')
-        w(f'BLKBODY      5 +blkbody -void')
-        w(f'VOID         5 +void -{sex}')
-        w(f'{sex:<12} 5 +{sex}')
-        w('END')
-        w(card('GEOEND'))
-        for c in cards:
-            w(c)
-        w(card('ASSIGNMA', ('VACUUM', sex)))
-        w(card('ASSIGNMA', ('BLCKHOLE', 'BLKBODY')))
-        w(card('ASSIGNMA', ('VACUUM', 'VOID')))
-        w(card('SCORE', ('ENERGY',)))
-        w(card('RANDOMIZ', (1.0, 12345)))
-        w(card('START', (100000,)))
-        w(card('STOP'))
-
-    # Volumes and masses are written at full precision. A fixed number of
-    # decimals costs significant figures on the smallest organs -- at six
-    # decimals a 0.025 g organ keeps only five -- and those are exactly the
-    # organs whose dose is divided by the volume written here.
-    tbl = os.path.join(out_dir(sex), f'{sex}_regions.csv')
+    if not write:
+        # Validation only, and nothing on disk. The path is not built here
+        # either: out_dir() creates its directory as a side effect, so asking
+        # for it would leave an empty folder behind.
+        print(f'{sex}: {len(ids)} organs, {len(mat_of)} materials')
+        print(f'   total mass {total/1000:7.2f} kg  (ICRP {ref["mass"]/1000:g})')
+        dev = lambda g, w: f'{100 * (g - w) / w:+.2f} %' if w else 'n/a'
+        print(f'   red marrow  {rbm:7.1f} g   (ICRP {ref["rbm"]:g}, '
+              f'{dev(rbm, ref["rbm"])})')
+        print(f'   yellow      {ybm:7.1f} g   (ICRP {ref["ybm"]:g}, '
+              f'{dev(ybm, ref["ybm"])})')
+        return True
+    tbl = os.path.join(dest or out_dir(sex), f'{sex}_regions.csv')
     with open(tbl, 'w', newline='') as f:
         c = csv.writer(f)
         c.writerow(['region', 'organ_id', 'organ', 'material', 'medium',
@@ -435,26 +603,30 @@ def build(sex):
                     'tb_frac', 'tb_g', 'cb_frac', 'cb_g', 'mst_frac', 'mst_g'])
         for i in ids:
             name, rho, _ = mats[i]
-            vol = cells[i][1]
+            vol = vols[i]
             m, d = mass[i], dry[i]
             bf = blood.get(medium_of[i], 0.0)
             r, y, tb, cb, mst = bone.get(i, (0.0,) * 5)
-            c.writerow([f'{sex}{i}', i, name, mat_of[key_of[i]], medium_of[i],
+            c.writerow([f'{alias(sex)}{i}', i, name, mat_of[key_of[i]],
+                        medium_of[i],
                         rho, repr(vol), repr(m), bf, repr(m * bf),
                         repr(d),
                         r, repr(d * r), y, repr(d * y), tb, repr(d * tb),
                         cb, repr(d * cb), mst, repr(d * mst)])
 
-    print(f'{sex}: {out}')
+    print(f'{sex}: {tbl}')
     print(f'   {len(ids)} organs -> {len(ids)} regions, {len(mat_of)} materials,'
           f' {len(cards)} cards')
-    print(f'   region table -> {os.path.basename(tbl)}')
-    print(f'   total mass {total/1000:7.1f} kg  (ICRP {ref["mass"]/1000:.0f})')
-    print(f'   red marrow  {rbm:7.0f} g   (ICRP {ref["rbm"]:.0f})')
-    print(f'   yellow      {ybm:7.0f} g   (ICRP {ref["ybm"]:.0f})')
-    return out
+    print(f'   total mass {total/1000:7.2f} kg  (ICRP {ref["mass"]/1000:g})')
+    dev = lambda g, w: f'{100 * (g - w) / w:+.2f} %' if w else 'n/a'
+    print(f'   red marrow  {rbm:7.1f} g   (ICRP {ref["rbm"]:g}, '
+          f'{dev(rbm, ref["rbm"])})')
+    print(f'   yellow      {ybm:7.1f} g   (ICRP {ref["ybm"]:g}, '
+          f'{dev(ybm, ref["ybm"])})')
+    return tbl
 
 
 if __name__ == '__main__':
-    ok = [build(s) for s in ('AM', 'AF')]
+    names = sys.argv[1:] or phantoms()
+    ok = [build(s) for s in names]
     sys.exit(0 if all(ok) else 1)
