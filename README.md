@@ -30,7 +30,7 @@ data location is remembered so tab 1 is done once.
 |---|---|
 | 1 Data | choose the ICRP zip as downloaded, or a folder; it unpacks the 14 files needed |
 | 2 Phantom | builds the FLUKA cards, refusing to write unless the masses match ICRP |
-| 3 Case | organ, particle, energy, phantom, exposure; writes the input |
+| 3 Case | organ, particle, energy, phantom, exposure, physics; writes the input |
 | 4 Run | cycles and cores; runs FLUKA, merges with `usbsuw`, converts |
 | 5 Results | dose per organ, or per ICRP-145 target region |
 
@@ -104,6 +104,71 @@ python3 targets.py   AM AM/Internal/*_sum.lis      # per ICRP target region
 regions — picking the radiosensitive sub-layer where ICRP specifies one, and
 computing red bone marrow, which no per-organ result contains.
 
+## Transport physics
+
+Every input defaults to `DEFAULTS PRECISIO`: coupled electron–photon
+transport with a 100 keV electron and positron transport cutoff, and single
+Coulomb scattering substituted for the Molière condensed-history multiple
+scattering at every boundary crossing. In a phantom of
+millions of tetrahedra a shower electron crosses a boundary every fraction of
+a millimetre, so that substitution — one single-scattering treatment per
+crossing — dominates the electromagnetic transport cost. Two faster settings
+exist, on tab 3 of `RUNME.py` or on the command line; each writes two cards
+after `DEFAULTS` and changes nothing else in the input.
+
+```sh
+python3 make_examples.py --physics fast
+python3 make_examples.py --physics custom --ecut 0.15
+```
+
+**`fast`** raises the electron and positron transport threshold to 0.35 MeV
+(`EMFCUT`; the production thresholds follow the transport cut) and restores
+the condensed-history default at boundaries (`MULSOPT`). An electron below
+threshold is not transported: its kinetic energy is deposited at its point of
+creation. The continuous-slowing-down-approximation (CSDA) range at
+0.35 MeV in soft tissue is about 1 mm, so for
+scoring volumes large against a millimetre the displacement of the deposition
+site is negligible and, under charged-particle equilibrium, the local deposit
+is the correct expectation value — the kerma approximation, restricted to
+sub-threshold electrons. The same threshold expressed as a range is a 1 mm
+production range cut in soft tissue.
+Measured on the AF internal benchmark against `PRECISIO`, per-organ doses
+agree within counting statistics and the CPU time per primary falls from
+63.7 to 41.2 ms. Harder cuts gain nothing further: with electron transport
+suppressed entirely the time per primary is unchanged, the remainder being
+geometry navigation through the mesh.
+
+**`custom`** writes the same two cards with a threshold of your choosing.
+Choose it so the CSDA range at the cut is small against the thinnest
+structure scored: in soft tissue, roughly 0.14 mm at 0.1 MeV, 1 mm at
+0.35 MeV, 4 mm at 1 MeV.
+
+**Not recommended** wherever local deposition is a poor model of the
+transport it replaces:
+
+- **Electron, positron and beta-emitting sources.** The threshold terminates
+  the primaries themselves; any part of the spectrum below the cut deposits
+  at the emission point, suppressing the cross-dose to neighbouring regions
+  entirely.
+- **Targets thinner than the residual range.** The airway epithelial layers
+  (micrometres), the skin target layer and the lens of the eye receive their
+  dose from electrons slowing down across them; displacing the deposition
+  site by up to a millimetre biases these doses by construction. The GUI
+  warns if fast or custom physics is combined with airway scoring or a
+  charged-particle source.
+- **Photon energies above a few MeV.** The secondary-electron range grows to
+  centimetres, charged-particle equilibrium fails at organ boundaries, and
+  the local-deposition error grows with energy.
+- **Heavy charged particles.** The primaries are unaffected by these cards,
+  but delta-ray transport above the cut is not; keep `full` when scoring
+  micrometre targets around an alpha or ion source.
+- **Reference results.** Anything intended for comparison against other
+  codes or publication should state, and use, the full treatment.
+
+A fast or custom case is written to its own directory (`..._fast`,
+`..._ecut0.15MeV`) and flagged as not the benchmark, so the ICRP benchmark
+inputs are never overwritten.
+
 ## Validation
 
 `make_umesh.py` refuses to write anything unless the phantom it has built matches
@@ -116,6 +181,16 @@ ICRP's published reference values, and `selftest.py` checks the same:
 | red bone marrow | 1169 g | 1170 | 899 g | 900 |
 | yellow bone marrow | 2480 g | 2480 | 1800 g | 1800 |
 | imported mesh volume vs ICRP organ table | exact | | exact | |
+
+Organ volume is summed over the tetrahedra of the `.ele` file, not read from
+`mrcp-*.cell`, so a dose is a deposit divided by the mass of the geometry FLUKA
+was handed. For the two adults the two agree. For the ten children of
+Publication 156 they do not: whole-body volume and mass agree exactly, and so
+does every organ that sits in one place, but the tissues ICRP cuts into head,
+trunk, arms and legs — muscle, residual tissue, skin, the large vessels — are
+divided differently in the mesh and in the table, by 9 % of the newborn's arm
+muscle and 72 % of the ten-year-old's sensitive trunk skin. `make_umesh.py`
+names the affected organs as it builds each phantom.
 
 Results from this toolkit have been checked organ by organ against the Geant4,
 MCNP6 and PHITS reference results ICRP distributes, at 10 million primaries per

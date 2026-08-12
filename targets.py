@@ -150,7 +150,7 @@ def load_bone(sex):
 def organ_doses(sex, lis):
     """organ ID -> (dose Gy/primary, error %, mass g, blood-free mass g)."""
     vals, errs = R.read_usrbin_ascii(lis)
-    rows = R.load_regions(sex)
+    rows = R.load_regions(sex, lis)
     if not (len(vals) == len(errs) == len(rows)):
         sys.exit(f'{lis}: {len(vals)} bins against {len(rows)} organs')
     out = {}
@@ -233,7 +233,8 @@ def check():
     listed = {o for _, _, ids in TARGETS for o in ids}
     listed |= set(RBM_REGIONS) | set(ENDOSTEUM_REGIONS)
     have, bad = {}, 0
-    for sex in ('AM', 'AF'):
+    names = M.phantoms() or ['AM', 'AF']
+    for sex in names:
         have[sex] = set(M.organ_ids(sex))
         bone = load_bone(sex)
         nz = [o for o in RBM_REGIONS if bone.get(o, 0) > 0]
@@ -243,15 +244,16 @@ def check():
         if len(nz) != len(RBM_REGIONS):
             bad += 1
 
-    missing_am = listed - have['AM']
-    missing_af = listed - have['AF']
-    absent_both = sorted(missing_am & missing_af)
-    sex_specific = sorted((missing_am | missing_af) - set(absent_both))
+    # An ID absent from every phantom is a fault in the tables; one absent
+    # from some is sex-specific anatomy, and now also age-specific.
+    per = {s: listed - have[s] for s in names}
+    absent_both = sorted(set.intersection(*per.values())) if per else []
+    sex_specific = sorted(set.union(*per.values()) - set(absent_both)) if per else []
 
     if sex_specific:
         print('  sex-specific, expected: ' + ', '.join(map(str, sex_specific)))
     if absent_both:
-        print('  ABSENT FROM BOTH PHANTOMS: ' + ', '.join(map(str, absent_both)))
+        print('  ABSENT FROM EVERY PHANTOM: ' + ', '.join(map(str, absent_both)))
         print('    Annex D lists these as target regions but the distributed')
         print('    mesh does not contain them. A target built only from such')
         print('    IDs is skipped rather than reported as zero.')
@@ -261,7 +263,7 @@ def check():
 def main():
     ap = argparse.ArgumentParser(
         description='ICRP-145 target-region doses from a FLUKA per-organ result')
-    ap.add_argument('sex', nargs='?', choices=('AM', 'AF'))
+    ap.add_argument('sex', nargs='?', choices=list(M.REFERENCE))
     ap.add_argument('usrbin', nargs='?', help='ASCII from usbrea on a usbsuw file')
     ap.add_argument('-o', '--out', help='write the table here as CSV')
     ap.add_argument('--endosteum-weights', metavar='CSV',

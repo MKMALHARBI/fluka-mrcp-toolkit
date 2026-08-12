@@ -13,27 +13,19 @@ reserved"; republishing any part of it requires written permission
 | size | 1 879 727 107 bytes (1.88 GB) |
 | report PDF | https://journals.sagepub.com/doi/pdf/10.1177/ANIB_49_3 |
 
-Expected layout, keeping ICRP's file names:
+Both go to tab 1 of `RUNME.py`, one at a time, exactly as downloaded. Nothing
+needs unpacking by hand: the toolkit takes the files it needs and puts them
+under `runs/phantom`, and remembers where.
 
-    phantom/MRCP_AM/MRCP_AM.ele  .node  _media.dat  _bone.dat  _blood.dat
-    phantom/MRCP_AF/MRCP_AF.ele  .node  _media.dat  _bone.dat  _blood.dat
-    phantom/mcnp_tables/mrcp-am.cell  mrcp-am.material
-                        mrcp-af.cell  mrcp-af.material
+    P145 Electronic files.zip        the phantoms, required
+    MRCP_GEANT4_lung_airway.zip      the airway model, optional
 
-```sh
-unzip -j "P145 Electronic files.zip" "Phantom_data/MRCP_AM/*" -d phantom/MRCP_AM/
-unzip -j "P145 Electronic files.zip" "Phantom_data/MRCP_AF/*" -d phantom/MRCP_AF/
-
-unzip -p "P145 Electronic files.zip" "MC_examples/MRCP_MCNP6.zip" > MRCP_MCNP6.zip
-unzip -j MRCP_MCNP6.zip "phantoms/mrcp-a[mf].cell" "phantoms/mrcp-a[mf].material" \
-      -d phantom/mcnp_tables/
-rm MRCP_MCNP6.zip
-```
-
-Set `MRCP_DATA` to use a copy held elsewhere:
+On the command line the same thing is
 
 ```sh
-MRCP_DATA=/path/to/data python3 make_umesh.py
+python3 setup_data.py "P145 Electronic files.zip"
+python3 setup_data.py MRCP_GEANT4_lung_airway.zip     # optional
+python3 setup_data.py --status
 ```
 
 The `.obj`, `.mtl` and `.pdf` files are visualisation only; the remaining
