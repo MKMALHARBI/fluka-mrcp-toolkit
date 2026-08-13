@@ -164,10 +164,10 @@ transport it replaces:
   centimetres, charged-particle equilibrium fails at organ boundaries, and
   the local-deposition error grows with energy.
 - **Heavy charged particles.** The primaries are unaffected by these cards,
-  but delta-ray transport above the cut is not; keep `full` when scoring
+  but delta-ray transport above the cut is not; keep `precision` when scoring
   micrometre targets around an alpha or ion source.
 - **Reference results.** Anything intended for comparison against other
-  codes or publication should state, and use, the full treatment.
+  codes or publication should state, and use, the precision treatment.
 
 A fast or custom case is written to its own directory (`..._fast`,
 `..._ecut0.15MeV`) and flagged as not the benchmark, so the ICRP benchmark
