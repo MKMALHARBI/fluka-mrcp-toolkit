@@ -30,7 +30,7 @@ returning anything, so this script cannot emit an input built on tables that
 failed their checks.
 """
 
-__version__ = '1.2.1'
+__version__ = '1.2.2'
 import argparse
 import os
 import sys
@@ -82,7 +82,7 @@ def physics(w, cfg):
     a mesh phantom expensive.
     """
     w(M.card('DEFAULTS', (), 'PRECISIO'))
-    if cfg.physics == 'full':
+    if cfg.physics == 'precision':
         return
     cut = FAST_ECUT if cfg.physics == 'fast' else cfg.ecut
     w(M.card('EMFCUT', (M.num(-cut / 1000.0), '3.3333E-5', 0.0,
@@ -313,7 +313,7 @@ def case_dir(sex, cfg, kind):
     if kind == 'Internal':
         bits.append(str(cfg.organ))
     bits.append(f'{cfg.particle.lower()}{cfg.energy:g}MeV')
-    if cfg.physics != 'full':
+    if cfg.physics != 'precision':
         bits.append('fast' if cfg.physics == 'fast'
                     else f'ecut{cfg.ecut:g}MeV')
     if getattr(cfg, 'airway', False):
@@ -392,13 +392,13 @@ def parse_args(argv=None):
                         '(needs MRCP_<sex>.lung and .lungDiam)')
     p.add_argument('--primaries', type=int, default=PRIMARIES, metavar='N',
                    help=f'primaries per cycle (default {PRIMARIES})')
-    p.add_argument('--physics', choices=('full', 'fast', 'custom'),
-                   default='full',
-                   help='full = PRECISIO throughout (default); fast = '
-                        f'electrons below {FAST_ECUT:g} MeV deposit locally '
-                        'and single scattering at boundaries is off, for '
-                        'photon organ doses; custom = the same cards with '
-                        'the cut given by --ecut')
+    p.add_argument('--physics', choices=('precision', 'fast', 'custom'),
+                   default='precision',
+                   help='precision = PRECISIO throughout (default); fast = '
+                        f'x1.5 speed: electrons below {FAST_ECUT:g} MeV '
+                        'deposit locally and single scattering at boundaries '
+                        'is off, for photon organ doses; custom = the same '
+                        'cards with the cut given by --ecut')
     p.add_argument('--ecut', type=float, metavar='MeV',
                    help='electron cut for --physics custom')
     p.add_argument('--sex', choices=list(M.REFERENCE), action='append',
@@ -422,7 +422,7 @@ def parse_args(argv=None):
     a.position = tuple(a.position)
     a.is_benchmark = (a.organ == ICRP_ORGAN and a.particle == ICRP_PARTICLE
                       and a.energy == ICRP_ENERGY and a.position == ICRP_POS
-                      and a.physics == 'full')
+                      and a.physics == 'precision')
     return a
 
 

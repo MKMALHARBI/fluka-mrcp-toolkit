@@ -12,7 +12,7 @@
 Jobs run on a background thread. The log echoes the equivalent command line.
 """
 
-__version__ = '1.2.1'
+__version__ = '1.2.2'
 
 import glob
 import os
@@ -463,12 +463,12 @@ class App:
     SCORING = ['organ dose only',
                'organ dose + airway epithelium']
 
-    PHYSICS = ['full    PRECISIO reference transport',
-               'fast    0.35 MeV cutoff, kerma-like, ~1.6x faster',
-               'custom  user-defined electron cutoff']
+    PHYSICS = ['precision  PRECISIO reference transport',
+               'fast x1.5  local deposition below 0.35 MeV',
+               'custom     user-defined electron cutoff']
 
     PHYS_TEXT = {
-        'full':
+        'precision':
             'PRECISIO defaults: coupled electron-photon transport with a '
             '100 keV electron transport cutoff and single Coulomb scattering '
             'in place of condensed-history multiple scattering at every '
@@ -476,17 +476,17 @@ class App:
             'radionuclide sources, for the airway epithelium, skin and '
             'eye-lens targets, and for reference results.',
         'fast':
-            'Raises the electron/positron transport and production '
-            'thresholds to 0.35 MeV, whose continuous-slowing-down-'
-            'approximation (CSDA) range in soft tissue is about 1 mm, and '
-            'restores condensed-history multiple scattering at boundaries. '
-            'Sub-threshold electrons deposit their kinetic energy at the '
-            'point of creation -- a kerma-like approximation, valid under '
-            'charged-particle equilibrium for scoring volumes large against '
-            'the residual range. Photon organ doses to a few MeV agree with '
-            'the full treatment within counting statistics. Invalid for '
-            'charged-particle primaries and for targets comparable to or '
-            'thinner than the residual range: airway epithelium, skin, '
+            'Fast means one approximation: electrons and positrons below '
+            '0.35 MeV are not transported. Their kinetic energy is scored '
+            'where they are created, which moves it by at most the '
+            'continuous-slowing-down-approximation (CSDA) range at the cut '
+            '-- about 1 mm in soft tissue -- and condensed-history multiple '
+            'scattering replaces single scattering at tetrahedron '
+            'boundaries. Measured on the AF internal benchmark, the time '
+            'per primary falls from 63.7 to 41.2 ms (x1.5) and photon organ '
+            'doses agree with precision within counting statistics. Invalid '
+            'for charged-particle primaries and for targets comparable to '
+            'or thinner than the residual range: airway epithelium, skin, '
             'eye lens.',
         'custom':
             'The same two cards with a user-defined threshold. Choose it so '
@@ -557,7 +557,7 @@ class App:
         if self.primaries.get() != str(X.PRIMARIES):
             a += ['--primaries', self.primaries.get()]
         mode = self.physics.get().split()[0]
-        if mode != 'full':
+        if mode != 'precision':
             a += ['--physics', mode]
             if mode == 'custom':
                 a += ['--ecut', self.ecut.get()]
@@ -570,7 +570,7 @@ class App:
             messagebox.showinfo('No phantom', 'Build a phantom on tab 2 first.')
             return
         mode = self.physics.get().split()[0]
-        if mode != 'full' and (self.particle.get() != 'PHOTON'
+        if mode != 'precision' and (self.particle.get() != 'PHOTON'
                                or self.scoring.get() == self.SCORING[1]):
             if not messagebox.askyesno(
                     'Fast physics',
