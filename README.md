@@ -200,15 +200,15 @@ names the affected organs as it builds each phantom.
 
 Results from this toolkit have been checked organ by organ against the Geant4,
 MCNP6 and PHITS reference results ICRP distributes, at 10 million primaries per
-case. **`supplement.pdf`** holds that comparison in full: every organ, both
-phantoms, both exposures, each with its uncertainty.
+case. **`supplement.pdf`** holds that comparison in full: every organ, all
+twelve phantoms, both exposures, each with its uncertainty.
 
 | case | Geant4 | MCNP6 | PHITS |
 |---|---|---|---|
-| AM internal | 1.0006 | 0.9998 | 1.0019 |
-| AM external | 0.9924 | 0.9948 | 0.9929 |
+| AM internal | 1.0021 | 1.0006 | 1.0025 |
+| AM external | 0.9925 | 0.9948 | 0.9928 |
 | AF internal | 1.0029 | 0.9996 | 0.9994 |
-| AF external | 0.9999 | 1.0062 | 0.9960 |
+| AF external | 0.9999 | 1.0062 | 0.9959 |
 
 Median FLUKA / reference dose ratio, over organs where both sides have a
 relative error of 10 % or better. Twelve independent comparisons, all within
