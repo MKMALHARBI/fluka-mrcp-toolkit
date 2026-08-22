@@ -61,13 +61,20 @@ def c_fluka():
 
 def c_source_routine():
     """The internal case needs an executable built from FLUKA's own file."""
+    import glob
     import build_exe as B
-    if os.access(B.EXE, os.X_OK):
-        return True, 'flukamrcp built'
+    import make_umesh as M
+    # the executable belongs to the case, so look in the case directories
+    built = [d for d in glob.glob(os.path.join(M.work_root(), '*'))
+             if os.path.isdir(d) and os.access(B.exe_for(d), os.X_OK)]
+    if built:
+        return True, f'flukamrcp built in {len(built)} case director' + \
+            ('y' if len(built) == 1 else 'ies')
     src = B.source_file()
     if not src:
         return None, 'FLUKA not found; needed only for the internal case'
-    return None, 'not built yet -- run: python3 build_exe.py'
+    return None, ('not built yet -- it is built per case, by RUNME tab 4 '
+                  'or python3 build_exe.py')
 
 
 def c_data():

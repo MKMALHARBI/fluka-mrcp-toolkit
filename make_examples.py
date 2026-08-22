@@ -427,12 +427,17 @@ def parse_args(argv=None):
     a.position = tuple(a.position)
     a.is_benchmark = (a.organ == ICRP_ORGAN and a.particle == ICRP_PARTICLE
                       and a.energy == ICRP_ENERGY and a.position == ICRP_POS
+                      and not a.airway
                       and a.physics == 'precision')
     return a
 
 
 def main(argv=None):
     cfg = parse_args(argv)
+    if not cfg.sex:
+        print('no phantom installed; run setup_data.py on the ICRP archive '
+              'first, then make_umesh.py --check', file=sys.stderr)
+        return 1
 
     if cfg.list_organs:
         d = M.assemble(cfg.sex[0])

@@ -167,11 +167,16 @@ class App:
             self.fill_view()
 
     def refresh_where(self):
+        # complete per phantom, as setup() judges it: one publication is a
+        # working install, not an incomplete one
         d = M.data_dir()
+        got = D.present(d)
         have, miss = D.status(d)
-        ok = not miss
-        self.where.set(f'data: {d}   ({len(have)}/{len(have)+len(miss)} files'
-                       + ('' if ok else ', incomplete') + ')')
+        ok = bool(got)
+        self.where.set(f'data: {d}   ('
+                       + (f'{len(got)} of {len(M.REFERENCE)} phantoms complete' if ok
+                          else f'no complete phantom, {len(have)}/{len(have)+len(miss)} files')
+                       + ')')
         self.data_ok = ok
         return ok
 
@@ -330,7 +335,8 @@ class App:
         self.case_box = ttk.Combobox(f, textvariable=self.sex, state='readonly',
                                      values=self.case_phantoms())
         row('Phantom', self.case_box)
-        self.case_box.bind('<<ComboboxSelected>>', lambda _e: self.fill_organs())
+        self.case_box.bind('<<ComboboxSelected>>',
+                           lambda _e: (self.fill_organs(), self.check_airway()))
         self.case = tk.StringVar(value='both')
         row('Exposure', ttk.Combobox(f, textvariable=self.case, state='readonly',
             values=['both', 'internal  source inside an organ',
@@ -508,7 +514,12 @@ class App:
         toolkit normally unpacks does not. Without them the option cannot work,
         so it is disabled rather than left to fail at run time.
         """
-        got = M.phantoms()
+        # judged for the phantom chosen on the case tab, not for every phantom
+        # installed: the airway files ship with the adults only, so a P145 +
+        # P156 install must not lose the option for AM and AF
+        v = self.sex.get() if hasattr(self, 'sex') else ''
+        got = ((self.offered_sexes() or M.phantoms()) if v == 'all'
+               else [self.case_sex()])
         missing = [s for s in got
                    if not os.path.exists(os.path.join(M.mesh_dir(s),
                                                       f'MRCP_{s}.lung'))]
@@ -518,7 +529,8 @@ class App:
             self.scoring.set(self.SCORING[0])
             self.scoring_box['values'] = self.SCORING[:1]
             self.scoring_hint.configure(
-                text='airway model not found -- set the data up on tab 1')
+                text='airway model not found for ' + ', '.join(missing)
+                + ' -- it ships with the ICRP-145 adults; set the data up on tab 1')
         else:
             self.scoring_box['values'] = self.SCORING
             self.scoring_hint.configure(text='ICRP-145 BB and bb target layers')
@@ -669,10 +681,19 @@ class App:
             '   ls *_fort.2? | usbsuw   then usbrea\n'
             'An organ-dose-only external case needs no -e and no executable.'))
 
+    @staticmethod
+    def case_done(d):
+        """Merged results exist: the organ doses, and for an airway case the
+        airway layers as well."""
+        done = glob.glob(os.path.join(d, '*_sum.lis'))
+        if done and 'airway' in os.path.basename(d):
+            done = glob.glob(os.path.join(d, '*_sum_airway.lis'))
+        return bool(done)
+
     def fill_cases(self):
         self.caselist.delete(0, 'end')
         for d, n in self.cases():
-            done = ' - done' if glob.glob(os.path.join(d, '*_sum.lis')) else ''
+            done = ' - done' if self.case_done(d) else ''
             self.caselist.insert('end',
                                  os.path.relpath(d, M.work_root()) + done)
 
@@ -686,18 +707,18 @@ class App:
             return
         try:
             cyc, jobs = int(self.cycles.get()), max(1, int(self.jobs.get()))
+            if cyc <= 0:
+                raise ValueError('cycles')
         except ValueError:
-            messagebox.showerror('Bad number', 'Cycles and cores must be whole numbers.')
+            messagebox.showerror('Bad number', 'Cycles must be a positive whole '
+                                 'number and cores a whole number.')
             return
         self.prog.start(12)
 
         def job():
             for d, n in sel:
                 self.log(f'\n--- {d}: {cyc} cycles on {jobs} core(s)')
-                done = glob.glob(os.path.join(d, '*_sum.lis'))
-                if done and 'airway' in os.path.basename(d):
-                    done = glob.glob(os.path.join(d, '*_sum_airway.lis'))
-                if done:
+                if self.case_done(d):
                     self.log('  already done, skipping')
                     continue
                 if self.transport(d, n, cyc, jobs):
@@ -734,6 +755,12 @@ class App:
                         fh.write('../' + line + '\n')
                     else:
                         fh.write(line + '\n')
+            # the airway routines read airway.stem from the run directory,
+            # with the same one-level shift as the mesh path in the input
+            stem = os.path.join(d, 'airway.stem')
+            if os.path.exists(stem):
+                with open(os.path.join(wd, 'airway.stem'), 'w') as fh:
+                    fh.write('../' + open(stem).read().strip() + '\n')
             procs.append(subprocess.Popen(
                 ['rfluka', *e, '-N0', f'-M{ncyc}', name], cwd=wd,
                 stdout=open(os.path.join(wd, 'rfluka.log'), 'w'),
