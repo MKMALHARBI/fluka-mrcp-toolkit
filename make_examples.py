@@ -305,14 +305,19 @@ def case_dir(sex, cfg, kind):
     """One self-contained directory per case, under the work root.
 
     The name carries everything that makes the case what it is, so changing
-    the phantom, the organ, the particle or the energy gives a new directory
-    rather than overwriting an old one. The source organ appears only for
-    internal exposures, since an external source does not have one.
+    the phantom, the organ, the particle, the energy or the source position
+    gives a new directory rather than overwriting an old one. The source organ
+    appears only for internal exposures, since an external source does not
+    have one; the position only for external ones, and only away from the
+    ICRP default, so the benchmark directory keeps its name.
     """
     bits = [sex, kind.lower()]
     if kind == 'Internal':
         bits.append(str(cfg.organ))
     bits.append(f'{cfg.particle.lower()}{cfg.energy:g}MeV')
+    if kind == 'External' and tuple(cfg.position) != ICRP_POS:
+        x, y, z = cfg.position
+        bits.append(f'pos{x:g},{y:g},{z:g}cm')
     if cfg.physics != 'precision':
         bits.append('fast' if cfg.physics == 'fast'
                     else f'ecut{cfg.ecut:g}MeV')

@@ -168,7 +168,6 @@ class Viewer:
 
     def draw(self, _=None):
         lab, mid = self.slab()
-        show = dict(zip(self.check.labels, self.check.get_status()))
         show = {t.get_text(): s for t, s in zip(self.check.labels,
                                                 self.check.get_status())}
         on = bool(show.get('dose')) and self.dlut is not None

@@ -137,6 +137,7 @@
       NGY = INT ( ( GYMAX - GYMIN ) / GCELL ) + 1
       NGZ = INT ( ( GZMAX - GZMIN ) / GCELL ) + 1
 
+      IF ( NGX * NGY * NGZ .GT. MXCELL ) GO TO 9005
       DO I = 1, NGX * NGY * NGZ
          IHEAD ( I ) = 0
       END DO
@@ -174,6 +175,9 @@
       CALL FLABRT ( 'AWINIT', 'grid overflow' )
  9004 WRITE ( LUNERR, * ) ' AIRWAY: more branches than MXSEG =', MXSEG
       CALL FLABRT ( 'AWINIT', 'too many branches' )
+ 9005 WRITE ( LUNERR, * ) ' AIRWAY: grid ', NGX * NGY * NGZ,
+     &                     ' cells exceeds MXCELL =', MXCELL
+      CALL FLABRT ( 'AWINIT', 'MXCELL too small' )
       END
 
 *=== awlayr =========================================================*
