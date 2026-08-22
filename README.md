@@ -33,7 +33,7 @@ remembered so tab 1 is done once per archive.
 | 1 Data | choose an ICRP zip as downloaded, or a folder; it unpacks the files needed |
 | 2 Phantom | builds the FLUKA cards, refusing to write unless the masses match ICRP |
 | 3 Case | organ, particle, energy, phantom, exposure, physics; writes the input. Offers the phantoms built on tab 2 |
-| 4 Run | cycles and cores; runs FLUKA, merges with `usbsuw`, converts |
+| 4 Run | cycles and cores; runs FLUKA, merges with `usbsuw`, converts; an airway case gets a second merge, `*_sum_airway.lis`, for the epithelial layers |
 | 5 Results | dose per organ or per ICRP target region; CSV export at 1, 2 or 3 sigma |
 | 6 View | slices through anatomy, airways and dose; merges raw cycles when needed |
 
@@ -47,7 +47,7 @@ in the window can be repeated on the command line.
 | 0 | `setup_data.py <zip or folder>` | unpacks the ICRP data (P145, P156 or both) and remembers where it is | `phantom/`, `.datapath` |
 | 1 | `selftest.py` | checks Python, FLUKA, the data, every phantom's masses and decks; `--fluka` adds short transport runs and staged failures, `--transport` runs every phantom through FLUKA | pass / fail |
 | 2 | `make_umesh.py` | builds the phantom: one `MATERIAL` + `COMPOUND` per tissue, one `ASSIGNMA` per organ | the cards, and `<phantom>_regions.csv` |
-| 3 | `make_examples.py` | writes the FLUKA input for your case | `runs/AM_internal_9500_photon1MeV/…inp` etc. |
+| 3 | `make_examples.py` | writes the FLUKA input for your case; anything away from the ICRP defaults (organ, particle, energy, position, physics, airway) gets its own directory | `runs/AM_internal_9500_photon1MeV/…inp` etc. |
 | 4 | `rfluka`, `usbsuw`, `usbrea` | FLUKA's own commands: transport, merge, convert | `*_sum.lis` |
 | 5 | `read_doses.py` or `targets.py` | dose per organ, or per ICRP-145 target region | a table, printed or CSV |
 
@@ -77,7 +77,9 @@ python3 targets.py AM runs/AM_external_photon1MeV/*_sum.lis   # 5
 
 FLUKA is single-threaded; to use more cores, run several `rfluka` processes with
 different `RANDOMIZ` seeds in separate directories and merge them all with one
-`usbsuw`. `RUNME.py` tab 4 does that for you. The internal case additionally
+`usbsuw`. `RUNME.py` tab 4 does that for you. An airway case writes a second
+binning to `fort.22`; merge those files separately, under their own name
+(tab 4 uses `<name>_sum_airway`), since `usbsuw` takes one binning at a time. The internal case additionally
 needs an executable built from FLUKA's own `umesh_source_newgen.f`; see the notes
 below.
 

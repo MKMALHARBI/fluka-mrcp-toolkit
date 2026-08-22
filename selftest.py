@@ -9,7 +9,7 @@ so a pass means the phantom data was read correctly rather than that the code is
 self-consistent.
 """
 
-__version__ = '1.2.1'
+__version__ = '1.2.3'
 import argparse
 import os
 import shutil
