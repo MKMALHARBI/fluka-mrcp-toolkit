@@ -694,7 +694,10 @@ class App:
         def job():
             for d, n in sel:
                 self.log(f'\n--- {d}: {cyc} cycles on {jobs} core(s)')
-                if glob.glob(os.path.join(d, '*_sum.lis')):
+                done = glob.glob(os.path.join(d, '*_sum.lis'))
+                if done and 'airway' in os.path.basename(d):
+                    done = glob.glob(os.path.join(d, '*_sum_airway.lis'))
+                if done:
                     self.log('  already done, skipping')
                     continue
                 if self.transport(d, n, cyc, jobs):
@@ -741,17 +744,24 @@ class App:
         if bad or len(fort) != cycles:
             self.log(f'  {len(fort)}/{cycles} cycles; see {d}/w*/rfluka.log')
             return 1
+        # the organ doses are on unit 21 and the airway layers, when scored,
+        # on unit 22: two binnings, merged separately, the airway one under
+        # its own stem so the results tab's *_sum.lis lookup stays unique
+        fort22 = sorted(glob.glob(os.path.join(d, 'w[0-9][0-9]', '*_fort.22')))
         self.log('  merging with usbsuw')
-        rel = '\n'.join(os.path.relpath(x, d) for x in fort)
-        subprocess.run(['usbsuw'], cwd=d, input=rel + f'\n\n{name}_sum\n',
-                       text=True, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL)
-        subprocess.run(['usbrea'], cwd=d, text=True,
-                       input=f'{name}_sum.bnn\n{name}_sum.lis\n\n',
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if not os.path.exists(os.path.join(d, name + '_sum.lis')):
-            self.log('  usbsuw/usbrea produced no _sum.lis')
-            return 1
+        for files, stem in ((fort, f'{name}_sum'), (fort22, f'{name}_sum_airway')):
+            if not files:
+                continue
+            rel = '\n'.join(os.path.relpath(x, d) for x in files)
+            subprocess.run(['usbsuw'], cwd=d, input=rel + f'\n\n{stem}\n',
+                           text=True, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+            subprocess.run(['usbrea'], cwd=d, text=True,
+                           input=f'{stem}.bnn\n{stem}.lis\n\n',
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if not os.path.exists(os.path.join(d, stem + '.lis')):
+                self.log(f'  usbsuw/usbrea produced no {stem}.lis')
+                return 1
         for wd in wdirs:
             shutil.rmtree(wd, ignore_errors=True)
         self.log('  done')
@@ -928,17 +938,20 @@ class App:
                 if not raw:
                     self.log('  this case has not been run')
                     return
-                cyc = sorted(glob.glob(os.path.join(d, '*_fort.21')))
-                self.log(f'\n$ ls *_fort.21 | usbsuw     ({len(cyc)} cycles)')
-                stem = f'{name}_sum'
-                subprocess.run(['usbsuw'], cwd=d, text=True,
-                               input='\n'.join(os.path.basename(c) for c in cyc)
-                                     + f'\n\n{stem}\n', capture_output=True)
-                self.log('$ usbrea')
-                subprocess.run(['usbrea'], cwd=d, text=True,
-                               input=f'{stem}.bnn\n{stem}.lis\n\n',
-                               capture_output=True)
-                target = os.path.join(d, f'{stem}.lis')
+                for unit, suffix in ((21, '_sum'), (22, '_sum_airway')):
+                    cyc = sorted(glob.glob(os.path.join(d, f'*_fort.{unit}')))
+                    if not cyc:
+                        continue
+                    self.log(f'\n$ ls *_fort.{unit} | usbsuw     ({len(cyc)} cycles)')
+                    stem = f'{name}{suffix}'
+                    subprocess.run(['usbsuw'], cwd=d, text=True,
+                                   input='\n'.join(os.path.basename(c) for c in cyc)
+                                         + f'\n\n{stem}\n', capture_output=True)
+                    self.log('$ usbrea')
+                    subprocess.run(['usbrea'], cwd=d, text=True,
+                                   input=f'{stem}.bnn\n{stem}.lis\n\n',
+                                   capture_output=True)
+                target = os.path.join(d, f'{name}_sum.lis')
                 self.log('  ' + ('wrote ' + os.path.basename(target)
                                  if os.path.exists(target) else 'usbsuw failed'))
             if V.load(sex) is None:

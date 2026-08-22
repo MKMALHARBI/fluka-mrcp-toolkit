@@ -16,7 +16,6 @@ __version__ = '1.1.0'
 
 import argparse
 import os
-import re
 import shutil
 import sys
 import zipfile
@@ -201,11 +200,17 @@ def setup(source, root=None, log=print):
     root = root or os.path.join(M.work_root(), 'phantom')
     os.makedirs(root, exist_ok=True)
     if source:
-        if not zipfile.is_zipfile(source):
-            return False, (f'{os.path.basename(source)} is not a zip archive. '
-                           f'Give the archive exactly as downloaded from ICRP.')
-        log(f'reading {os.path.basename(source)} ...')
-        from_zip(source, root, log)
+        if os.path.isdir(source):
+            log(f'copying from {source} ...')
+            from_folder(source, root, log)
+        elif zipfile.is_zipfile(source):
+            log(f'reading {os.path.basename(source)} ...')
+            from_zip(source, root, log)
+        else:
+            return False, (f'{os.path.basename(source)} is neither a zip '
+                           f'archive nor a folder. Give the archive exactly '
+                           f'as downloaded from ICRP, or a folder it was '
+                           f'unpacked into.')
     # Completeness is per phantom, not over the whole catalogue: an archive
     # holds the two adults or the ten children, and having one publication is
     # not a broken install.

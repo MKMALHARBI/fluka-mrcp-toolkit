@@ -155,7 +155,7 @@ def organ_doses(sex, lis):
         sys.exit(f'{lis}: {len(vals)} bins against {len(rows)} organs')
     out = {}
     for v, e, r in zip(vals, errs, rows):
-        oid = int(r['region'][2:])
+        oid = int(r['organ_id'])
         dose = v / float(r['volume_cm3']) * R.GEV_J * 1000.0
         out[oid] = (dose, e, float(r['mass_g']), float(r['bloodfree_g']))
     return out
