@@ -12,7 +12,7 @@ The location is remembered in .datapath, so it need only be given once and no
 environment variable has to be set.
 """
 
-__version__ = '1.2.3'
+__version__ = '1.2.4'
 
 import argparse
 import os

@@ -3,7 +3,7 @@
 *     Shared storage for the ICRP-145 bronchial airway model.
 *
 *     MXNODE is the size of the tree ICRP distributes, 2**16. MXSEG is
-*     how many of those branches actually exist, 39399 in the male
+*     how many of those branches actually exist, 39397 in the male
 *     phantom, rounded up. MXLIST is the grid index: a branch is listed
 *     once for every cell its bounding box touches, so it runs to a few
 *     times MXSEG.

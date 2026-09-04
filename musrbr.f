@@ -24,34 +24,8 @@
 
       DOUBLE PRECISION PCONTR, XA, YA, ZA
       INTEGER IJ, MREG, LATCLL, ICALL, AWLAYR, IL
-      CHARACTER*250 CHSTEM
-      LOGICAL LFIRST
-      SAVE LFIRST
-      DATA LFIRST / .TRUE. /
 
-      IF ( LFIRST ) THEN
-         CHSTEM = ' '
-         OPEN ( UNIT = 88, FILE = 'airway.stem', STATUS = 'OLD',
-     &          ERR = 10 )
-         READ ( 88, '(A)', END = 10 ) CHSTEM
-         CLOSE ( 88 )
- 10      CONTINUE
-         IF ( CHSTEM .EQ. ' ' ) THEN
-            OPEN ( UNIT = 88, FILE = '../airway.stem', STATUS = 'OLD',
-     &             ERR = 20 )
-            READ ( 88, '(A)', END = 20 ) CHSTEM
-            CLOSE ( 88 )
- 20         CONTINUE
-         END IF
-         IF ( CHSTEM .EQ. ' ' ) CALL GETENV ( 'AIRWAY_DATA', CHSTEM )
-         IF ( CHSTEM .EQ. ' ' ) THEN
-            WRITE ( LUNERR, * ) ' AIRWAY: no airway.stem found'
-            CALL FLABRT ( 'MUSRBR', 'airway.stem' )
-         END IF
-         CALL AWINIT ( CHSTEM )
-         LFIRST = .FALSE.
-      END IF
-
+      CALL AWENSR
       IL = AWLAYR ( XA, YA, ZA )
       MUSRBR = MOD ( IL, 100 )
       RETURN

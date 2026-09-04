@@ -19,7 +19,7 @@
 *
 *     AWINIT reads the two files and sorts the branches into a uniform
 *     grid. AWLAYR answers, for one point, which layer it is in. Without
-*     the grid every deposit would be tested against 39399 branches.
+*     the grid every deposit would be tested against 39397 branches.
 *
 *=====================================================================*
       SUBROUTINE AWINIT ( CHFIL )
@@ -74,10 +74,17 @@
          NLAY ( I ) = 8
       END DO
       CLOSE ( 87 )
-      DO J = 1, 8
-         DIAM ( 17, J ) = DIAM ( 16, J )
+*     Row 17 is the synthetic ten-layer set for generation 9, as in the
+*     ICRP reference implementation (LungParallelDetCon.cc): the outer
+*     diameter of generation 9 extended inwards with the layer spacing
+*     of generation 8, so the 10-layer to 8-layer transition branches
+*     can be built instead of dropped.
+      DIAM ( 17, 1 ) = DIAM ( 9, 1 )
+      DO J = 2, 10
+         DIAM ( 17, J ) = DIAM ( 17, J - 1 )
+     &                  - ( DIAM ( 8, J - 1 ) - DIAM ( 8, J ) )
       END DO
-      NLAY ( 17 ) = 8
+      NLAY ( 17 ) = 10
       DO I = 1, 17
          DO J = 1, 10
             DIAM ( I, J ) = DIAM ( I, J ) * 100.0D+00
@@ -89,6 +96,8 @@
       DO I = 3, NNODE
          IF ( .NOT. LEX ( I ) ) GO TO 200
          IP = ( I - 1 ) / 2 + 1
+*        the reference implementation builds no tube to a pruned parent
+         IF ( .NOT. LEX ( IP ) ) GO TO 200
          IG = 1
          N  = I - 1
  150     CONTINUE
@@ -98,7 +107,6 @@
             GO TO 150
          END IF
 *        IG is the generation of node I, 1-based for the DIAM table
-         IF ( NLAY ( IG ) .NE. NLAY ( MAX ( IG - 1, 1 ) ) ) GO TO 200
          NSEG = NSEG + 1
          IF ( NSEG .GT. MXSEG ) GO TO 9004
          SGX1 ( NSEG ) = PX ( IP )
@@ -229,24 +237,100 @@
       D2 = ( X - AX - TT * BX ) ** 2 + ( Y - AY - TT * BY ) ** 2
      &   + ( Z - AZ - TT * BZ ) ** 2
 *     innermost layer this branch puts the point in
-      DO IL = NLAY ( IG ), 1, -1
-         RA = HLFHLF * DIAM ( MAX ( IG - 1, 1 ), IL )
-         RB = HLFHLF * DIAM ( IG, IL )
-         RR = RA + TT * ( RB - RA )
-         IF ( D2 .LE. RR * RR ) THEN
-            IF ( IL .GT. LMIN ) THEN
-               LMIN  = IL
-               IBAND = 1
-               IF ( NLAY ( IG ) .EQ. 8 ) IBAND = 2
+      IF ( IG .NE. 9 ) THEN
+         DO IL = NLAY ( IG ), 1, -1
+            RA = HLFHLF * DIAM ( MAX ( IG - 1, 1 ), IL )
+            RB = HLFHLF * DIAM ( IG, IL )
+            RR = RA + TT * ( RB - RA )
+            IF ( D2 .LE. RR * RR ) THEN
+               IF ( IL .GT. LMIN ) THEN
+                  LMIN  = IL
+                  IBAND = 1
+                  IF ( NLAY ( IG ) .EQ. 8 ) IBAND = 2
+               END IF
+               GO TO 80
             END IF
-            GO TO 80
-         END IF
-      END DO
+         END DO
+      ELSE
+*        transition branch, generation 8 to 9: the reference builds it
+*        twice over the same axis -- a ten-layer bronchial cone tapering
+*        to the synthetic generation-9 row (17), and an eight-layer
+*        bronchiolar cone to the true generation-9 diameters.  Evaluate
+*        both; the innermost containment wins as everywhere else.
+         DO IL = 10, 1, -1
+            RA = HLFHLF * DIAM ( 8, IL )
+            RB = HLFHLF * DIAM ( 17, IL )
+            RR = RA + TT * ( RB - RA )
+            IF ( D2 .LE. RR * RR ) THEN
+               IF ( IL .GT. LMIN ) THEN
+                  LMIN  = IL
+                  IBAND = 1
+               END IF
+               GO TO 85
+            END IF
+         END DO
+ 85      CONTINUE
+         DO IL = 8, 1, -1
+            RA = HLFHLF * DIAM ( 8, IL )
+            RB = HLFHLF * DIAM ( 9, IL )
+            RR = RA + TT * ( RB - RA )
+            IF ( D2 .LE. RR * RR ) THEN
+               IF ( IL .GT. LMIN ) THEN
+                  LMIN  = IL
+                  IBAND = 2
+               END IF
+               GO TO 80
+            END IF
+         END DO
+      END IF
  80   CONTINUE
       IC = LNXT ( IC )
       GO TO 10
  90   CONTINUE
       IF ( LMIN .GT. 0 ) AWLAYR = 100 * IBAND + LMIN
+      RETURN
+      END
+
+*=== awensr =========================================================*
+*
+*     Load the tree once, whichever of MUSRBR / LUSRBL is called first.
+*     The stem of the two ICRP files is read from airway.stem beside
+*     the input (one level up when rfluka runs in a subdirectory), or
+*     from AIRWAY_DATA.
+*
+*=====================================================================*
+      SUBROUTINE AWENSR
+
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+
+      CHARACTER*250 CHSTEM
+      LOGICAL LFIRST
+      SAVE LFIRST
+      DATA LFIRST / .TRUE. /
+
+      IF ( .NOT. LFIRST ) RETURN
+      CHSTEM = ' '
+      OPEN ( UNIT = 88, FILE = 'airway.stem', STATUS = 'OLD',
+     &       ERR = 10 )
+      READ ( 88, '(A)', END = 10 ) CHSTEM
+      CLOSE ( 88 )
+ 10   CONTINUE
+      IF ( CHSTEM .EQ. ' ' ) THEN
+         OPEN ( UNIT = 88, FILE = '../airway.stem', STATUS = 'OLD',
+     &          ERR = 20 )
+         READ ( 88, '(A)', END = 20 ) CHSTEM
+         CLOSE ( 88 )
+ 20      CONTINUE
+      END IF
+      IF ( CHSTEM .EQ. ' ' ) CALL GETENV ( 'AIRWAY_DATA', CHSTEM )
+      IF ( CHSTEM .EQ. ' ' ) THEN
+         WRITE ( LUNERR, * ) ' AIRWAY: no airway.stem found'
+         CALL FLABRT ( 'AWENSR', 'airway.stem' )
+      END IF
+      CALL AWINIT ( CHSTEM )
+      LFIRST = .FALSE.
       RETURN
       END
 

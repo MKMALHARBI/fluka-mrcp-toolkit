@@ -12,7 +12,7 @@
 Jobs run on a background thread. The log echoes the equivalent command line.
 """
 
-__version__ = '1.2.3'
+__version__ = '1.2.4'
 
 import glob
 import os
