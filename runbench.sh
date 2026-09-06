@@ -26,6 +26,7 @@ for c in $CASES; do
   [ -f "$d/doses.csv" ] && { echo "== $c: done, skipping"; continue; }
   echo "== $c: $CYCLES cycles on $W workers  $(date)"
   ( cd "$d" || exit 1
+    rm -rf w[0-9]*                     # a case killed mid-flight leaves stale cycles
     E=""; [ -x flukamrcp ] && E="-e $PWD/flukamrcp"
     w=1; left=$CYCLES
     while [ $w -le $W ] && [ $left -gt 0 ]; do
