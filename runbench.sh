@@ -2,17 +2,21 @@
 # The README's command-line steps 3-5 for the 24 ICRP benchmark cases.
 # Step 4 follows the README's multi-core note: several rfluka processes with
 # different RANDOMIZ seeds in separate directories, merged with one usbsuw.
-#   ./runbench.sh [workers]        default 4
+#   ./runbench.sh [workers] [phantom ...]     default 4 workers, all 12 phantoms
+#   ./runbench.sh 8 15M 15F                   one machine's share of the campaign
 set -u
 cd "$(dirname "$0")"
 W=${1:-4}
+shift $(( $# > 0 ? 1 : 0 ))
+PHANTOMS=${*:-AM AF 00M 00F 01M 01F 05M 05F 10M 10F 15M 15F}
 CYCLES=10
 
-python3 make_examples.py || exit 1                    # 3  all installed phantoms
-python3 build_exe.py    || exit 1
+SEX=""; for s in $PHANTOMS; do SEX="$SEX --sex $s"; done
+python3 make_examples.py $SEX || exit 1               # 3
+python3 build_exe.py         || exit 1
 
 CASES=""
-for s in AM AF 00M 00F 01M 01F 05M 05F 10M 10F 15M 15F; do
+for s in $PHANTOMS; do
   CASES="$CASES ${s}_internal_9500_photon1MeV ${s}_external_photon1MeV"
 done
 
