@@ -17,7 +17,20 @@ Both go to tab 1 of `RUNME.py`, one at a time, exactly as downloaded. Nothing
 needs unpacking by hand: the toolkit takes the files it needs and puts them
 under `runs/phantom`, and remembers where.
 
-    P145 Electronic files.zip        the phantoms, required
+    P145 Electronic files.zip        the two adults, required for AM and AF
+
+The ten children of Publication 156 come the same way:
+
+| | |
+|---|---|
+| publication page | https://www.icrp.org/publication.asp?id=ICRP%20Publication%20156 |
+| electronic files | https://www.icrp.org/docs/P156%20Electronic%20files.zip |
+| size | 11 789 654 114 bytes (11.8 GB) |
+
+    P156 Electronic files.zip        the ten children, required for 00M to 15F
+
+`setup_data.py` takes either archive, or both; `--status` lists what is
+installed. Python 3.8 or newer, standard library only.
     MRCP_GEANT4_lung_airway.zip      the airway model, optional
 
 On the command line the same thing is
