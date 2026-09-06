@@ -18,6 +18,7 @@ needs unpacking by hand: the toolkit takes the files it needs and puts them
 under `runs/phantom`, and remembers where.
 
     P145 Electronic files.zip        the two adults, required for AM and AF
+    MRCP_GEANT4_lung_airway.zip      the airway model, optional
 
 The ten children of Publication 156 come the same way:
 
@@ -31,7 +32,6 @@ The ten children of Publication 156 come the same way:
 
 `setup_data.py` takes either archive, or both; `--status` lists what is
 installed. Python 3.8 or newer, standard library only.
-    MRCP_GEANT4_lung_airway.zip      the airway model, optional
 
 On the command line the same thing is
 
