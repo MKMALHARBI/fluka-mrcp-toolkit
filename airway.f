@@ -55,7 +55,10 @@
       DO I = 1, MXNODE
          READ ( 87, *, END = 100 ) IDUM, XX, YY, ZZ, ICHK
          NNODE = NNODE + 1
-         PX ( NNODE ) = XX
+*        the distributed tree is mirrored about the sagittal plane
+*        relative to the mesh: its larger side lies over the smaller
+*        left lung, so x is negated on read
+         PX ( NNODE ) = -XX
          PY ( NNODE ) = YY
          PZ ( NNODE ) = ZZ
          LEX ( NNODE ) = ICHK .NE. 0

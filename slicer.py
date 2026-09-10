@@ -52,6 +52,7 @@ def read_airway(sex, data):
         return None, None
     rows = [l.split() for l in open(f) if l.split()]
     pos = np.array([[float(v) for v in r[1:4]] for r in rows], np.float32)
+    pos[:, 0] = -pos[:, 0]        # the tree is mirrored against the mesh
     ex = np.array([int(r[4]) for r in rows]).astype(bool)
     seg = np.array([(i // 2, i, int(math.log2(i)))
                     for i in range(2, len(rows)) if ex[i]], np.int32)
