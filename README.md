@@ -17,7 +17,7 @@ runnable part.
 
 Built and tested on FLUKA 4-5.2, gfortran, Linux.
 
-## Easiest way: one window
+## Graphical interface
 
 ```sh
 python3 RUNME.py
@@ -40,7 +40,7 @@ remembered so tab 1 is done once per archive.
 The log pane echoes the equivalent command for everything it does, so a session
 in the window can be repeated on the command line.
 
-## The same thing on the command line
+## Command-line use
 
 | # | run | what it does | produces |
 |---|---|---|---|
@@ -83,7 +83,7 @@ below.
 
 The phantom data is not included — see `REQUIREMENTS.md`.
 
-## Using it for your own problem
+## Other exposures and phantoms
 
 Only step 3 changes.
 
