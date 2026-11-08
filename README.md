@@ -237,7 +237,16 @@ FLUKA writes one line to the `.log` and carries on, starting every primary at th
 origin; the run completes, the energy balance is consistent, and the dose table
 is wrong.
 
-**Mesh files.** The `.ele` is named on the line after `UMESH`; the `.node` is
+**Mesh files.** `setup_data.py` writes the mesh as ICRP ships it, with two
+changes made once at unpack time (ICRP's files stay beside them as `.icrp`):
+every node coordinate carries `MESH_OFFSET`, 100 cm up in z, and tetrahedra of
+zero or negative volume are left out. ICRP centres each phantom on its own
+origin, inside the pelvis, and Flair's mesh check reports a mesh that encloses
+its frame's origin as an overlap; the 10M mesh also holds one inverted sliver
+of 3e-10 cm3 that Flair reports as inverted. With the shift Flair loads every
+phantom with no error. Organ masses are unchanged; the external source
+position and the airway branches are shifted to match, and the viewer shows
+ICRP's coordinates. The `.ele` is named on the line after `UMESH`; the `.node` is
 found from its basename and must sit in the same directory. The path must be
 **relative** — FLUKA aborts with `Error loading umesh` on an absolute path, at
 any length. `make_examples.py` writes a path relative to the case directory, so

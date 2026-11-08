@@ -6,7 +6,9 @@
 
 Takes the archive exactly as downloaded from ICRP and extracts the eleven files
 the toolkit needs -- nothing else, so about 1.3 GB instead of 2.7 GB. Four of
-those files live inside a second archive nested in the first.
+those files live inside a second archive nested in the first.  The mesh is
+then prepared for FLUKA and Flair (repair(): the node coordinates shifted by
+make_umesh.MESH_OFFSET, tetrahedra of zero or negative volume dropped).
 
 The location is remembered in .datapath, so it need only be given once and no
 environment variable has to be set.
@@ -25,6 +27,8 @@ import make_umesh as M
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 MESH = ['.ele', '.node', '_media.dat', '_bone.dat', '_blood.dat']
+NODE_MARK = '# shifted by setup_data.py:'
+ELE_MARK = '# cleaned by setup_data.py:'
 TABLES = ['cell', 'material']
 
 # The bronchial airway model. ICRP ships it in a second archive,
@@ -193,6 +197,94 @@ def from_zip(zpath, root, log=print):
     return n
 
 
+def _marked(path, mark):
+    with open(path, 'rb') as f:
+        f.seek(max(0, os.path.getsize(path) - 200))
+        tail = f.read().decode('latin-1')
+    return mark in tail
+
+
+def repair(root, name, log=print):
+    """The mesh as the toolkit hands it to FLUKA and Flair, done once:
+    every node coordinate shifted by M.MESH_OFFSET, and tetrahedra of zero
+    or negative volume dropped (see the make_umesh docstring). Both files
+    end in a comment line saying so, which marks them as done; FLUKA and
+    Flair read a line starting with a non-digit as a comment. ICRP's own
+    files stay beside them as .node.icrp and .ele.icrp."""
+    import numpy as np
+    d = os.path.join(root, f'MRCP_{name}')
+    node_f = os.path.join(d, f'MRCP_{name}.node')
+    ele_f = os.path.join(d, f'MRCP_{name}.ele')
+    if not (os.path.exists(node_f) and os.path.exists(ele_f)):
+        return
+    if _marked(node_f, NODE_MARK) and _marked(ele_f, ELE_MARK):
+        return
+    log(f'   preparing MRCP_{name} mesh ...')
+    nodes = np.loadtxt(node_f, skiprows=1, comments='#')
+    ele = np.loadtxt(ele_f, skiprows=1, comments='#', dtype=np.int64)
+    base = int(nodes[0, 0])
+    if not _marked(node_f, NODE_MARK):
+        ox, oy, oz = M.MESH_OFFSET
+        tmp = node_f + '.tmp'
+        with open(tmp, 'w') as f:
+            f.write(f'{len(nodes)} 3 0 0\n')
+            for r in nodes:
+                f.write(f'{int(r[0])} {r[1] + ox:.17g} {r[2] + oy:.17g} '
+                        f'{r[3] + oz:.17g}\n')
+            f.write(f'{NODE_MARK} ({ox:g}, {oy:g}, {oz:g}) cm added to '
+                    f'every coordinate\n')
+        os.rename(node_f, node_f + '.icrp')     # ICRP's file, kept
+        os.rename(tmp, node_f)
+        log(f'   nodes shifted by ({ox:g}, {oy:g}, {oz:g}) cm')
+    if not _marked(ele_f, ELE_MARK):
+        xyz = nodes[:, 1:4]
+        tet = ele[:, 1:5] - base
+        a, b, c, dd = (xyz[tet[:, k]] for k in range(4))
+        vol = np.einsum('ij,ij->i', np.cross(b - a, c - a), dd - a) / 6.0
+        keep = vol > 0.0
+        gone = ele[~keep]
+        tmp = ele_f + '.tmp'
+        with open(tmp, 'w') as f:
+            f.write(f'{int(keep.sum())} 4 1\n')
+            for i, r in enumerate(ele[keep]):
+                f.write(f'{i + base} {r[1]} {r[2]} {r[3]} {r[4]} {r[5]}\n')
+            f.write(f'{ELE_MARK} {len(gone)} tetrahedra of zero or negative '
+                    f'volume removed'
+                    + ''.join(f'; id {r[0]} organ {r[5]} '
+                              f'{vol[ele[:, 0] == r[0]][0]:.3g} cm3'
+                              for r in gone) + '\n')
+        os.rename(ele_f, ele_f + '.icrp')
+        os.rename(tmp, ele_f)
+        log(f'   {len(gone)} tetrahedra of zero or negative volume removed')
+
+
+def repair_airway(root, name, log=print):
+    """The airway branches (MRCP_<sex>.lung: id x y z flag) shifted by
+    M.MESH_OFFSET like the mesh, so airway.f scores them where the mesh is.
+    airway.f reads the file with list-directed READs, so no comment line
+    marks it; ICRP's file kept as .lung.icrp is the mark."""
+    lung_f = os.path.join(root, f'MRCP_{name}', f'MRCP_{name}.lung')
+    if not os.path.exists(lung_f) or os.path.exists(lung_f + '.icrp'):
+        return
+    ox, oy, oz = M.MESH_OFFSET
+    out = []
+    with open(lung_f, encoding='latin-1') as f:
+        for line in f:
+            t = line.split()
+            if len(t) < 4:
+                out.append(line)
+                continue
+            rest = ' '.join(t[4:])
+            out.append(f'{t[0]} {float(t[1]) + ox:.6g} {float(t[2]) + oy:.6g} '
+                       f'{float(t[3]) + oz:.6g} {rest}'.rstrip() + '\n')
+    tmp = lung_f + '.tmp'
+    with open(tmp, 'w') as f:
+        f.writelines(out)
+    os.rename(lung_f, lung_f + '.icrp')
+    os.rename(tmp, lung_f)
+    log(f'   airway branches shifted by ({ox:g}, {oy:g}, {oz:g}) cm')
+
+
 def setup(source, root=None, log=print):
     """Make the data usable, from a zip or a folder. Returns (ok, message)."""
     # under the work root, never beside the code: this is 900 MB and
@@ -219,6 +311,9 @@ def setup(source, root=None, log=print):
         _have, miss = status(root)
         return False, (f'no complete phantom in {root}; first missing file is '
                        f'{os.path.basename(miss[0][1])}')
+    for s in ok:
+        repair(root, s, log)
+        repair_airway(root, s, log)
     M.set_data_dir(root)
     M._refresh()
     air = [s for s in ok if have_airway(root, [s])]

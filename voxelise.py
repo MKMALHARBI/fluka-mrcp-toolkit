@@ -39,6 +39,7 @@ def read_mesh(sex, data=DATA):
     raw = numbers(os.path.join(d, f'MRCP_{sex}.node'))
     n = int(raw[0])
     nodes = raw[4:4 + n * 4].reshape(n, 4)[:, 1:].astype(np.float32)
+    nodes -= np.array(M.MESH_OFFSET, np.float32)      # back to ICRP's frame
     raw = numbers(os.path.join(d, f'MRCP_{sex}.ele'))
     m = int(raw[0])
     body = raw[3:3 + m * 6].reshape(m, 6).astype(np.int64)

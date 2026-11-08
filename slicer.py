@@ -30,6 +30,7 @@ from matplotlib.widgets import Slider, RadioButtons, CheckButtons
 from matplotlib.collections import LineCollection
 
 import voxelise as V
+import make_umesh as M
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GEV_J = 1.602176634e-10
@@ -52,6 +53,7 @@ def read_airway(sex, data):
         return None, None
     rows = [l.split() for l in open(f) if l.split()]
     pos = np.array([[float(v) for v in r[1:4]] for r in rows], np.float32)
+    pos -= np.array(M.MESH_OFFSET, np.float32)      # back to ICRP's frame
     pos[:, 0] = -pos[:, 0]        # the tree is mirrored against the mesh
     ex = np.array([int(r[4]) for r in rows]).astype(bool)
     seg = np.array([(i // 2, i, int(math.log2(i)))

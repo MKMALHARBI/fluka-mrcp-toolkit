@@ -343,7 +343,10 @@ def write_external(sex, d, cfg):
         physics(w, cfg)
         w(M.card('BEAM', (M.num(-cfg.energy / 1000.0), 0.0, ISOTROPIC),
                  cfg.particle))
-        w(M.card('BEAMPOS', (x, y, z)))
+        # the mesh carries MESH_OFFSET, so the source, given in ICRP's
+        # coordinates, is written in the mesh's
+        ox, oy, oz = M.MESH_OFFSET
+        w(M.card('BEAMPOS', (x + ox, y + oy, z + oz)))
         geometry(w, sex, os.path.dirname(out))
         tail(w, cfg, d, sex)
     if getattr(cfg, 'airway', False):

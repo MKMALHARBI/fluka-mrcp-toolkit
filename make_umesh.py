@@ -15,6 +15,14 @@ Set MRCP_DATA to override.
 FLUKA reads the TetGen mesh directly through a UMESH card, so the 8.2 M / 8.6 M
 tetrahedra are never converted -- MRCP_AM.ele is named on the line following the
 card and the matching .node file is picked up automatically from the basename.
+The files are written by setup_data.py as ICRP ships them, except that the
+node coordinates carry MESH_OFFSET (100 cm up in z, so that the mesh frame's
+origin, which ICRP puts inside the pelvis, lies outside the body: Flair's mesh
+check reports a mesh that encloses its own origin as an overlap) and that
+tetrahedra of zero or negative volume are left out (the 10M mesh has one
+inverted sliver of 3e-10 cm3, which Flair reports as inverted and FLUKA ignores).
+Anything placed in ICRP's coordinates, such as the external point source,
+is shifted by MESH_OFFSET when written; organ masses are unchanged.
 
 REGION NAMES. For a TetGen mesh FLUKA concatenates the UMESH SDUM with the
 integer organ-ID attribute of the tetrahedron, with no separator. SDUM 'AM' and organ ID 14000 therefore give
@@ -48,6 +56,10 @@ CONFIG = os.path.join(HERE, '.datapath')
 
 
 OUTCFG = os.path.join(HERE, '.outpath')
+
+
+# Added to every node coordinate by setup_data.py, cm; see the module docstring
+MESH_OFFSET = (0.0, 0.0, 100.0)
 
 
 def work_root():
