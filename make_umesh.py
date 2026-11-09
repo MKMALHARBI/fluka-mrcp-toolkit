@@ -45,7 +45,7 @@ paediatric phantoms it is not, for the tissues ICRP cuts into head, trunk, arms
 and legs. mesh_volumes() has the measurements.
 """
 
-__version__ = '1.1.0'
+__version__ = '1.2.5'
 import csv
 import os
 import re

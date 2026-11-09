@@ -18,7 +18,7 @@ read from your installation and the executable stays on your machine, which is
 what the FLUKA licence requires.
 """
 
-__version__ = '1.1.0'
+__version__ = '1.2.5'
 
 import glob
 import os
